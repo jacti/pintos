@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스케줄러 정책 시각화 (단계별)</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    table { border-collapse: collapse; margin-bottom: 20px; width: 100%; }
+    table, th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
+    #controls { margin-bottom: 10px; }
+    button, select, input { margin-right: 10px; }
+    #gantt {
+      position: relative;
+      margin-top: 20px;
+      border: 1px solid #333;
+      height: 240px;
+      overflow-x: auto;
+      background-image: linear-gradient(to right, #ccc 1px, transparent 1px);
+      background-size: 40px 100%;
+      padding-top: 20px;
+    }
+    .bar {
+      position: absolute;
+      height: 30px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    .grid-label { position: absolute; top: 0; font-size: 0.8em; color: #333; background: #fff; padding: 0 2px; }
+    #snapshot { margin-top: 10px; font-size: 0.9em; }
+    #step-controls { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>스케줄링 정책 시각화 (단계별)</h1>
+  <div id="controls">
+    <button id="add">작업 추가</button>
+    <button id="random">랜덤 작업 생성</button>
+    <select id="algo">
+      <option value="FCFS">FIFO</option>
+      <option value="SJF">SJF (비선점)</option>
+      <option value="SRTF">SJF (선점)</option>
+      <option value="RR">Round Robin</option>
+      <option value="MLFQ">MLFQ</option>
+    </select>
+    <input type="number" id="quantum" placeholder="양자 (RR용)" style="width: 120px;">
+    <button id="init">초기화</button>
+  </div>
+  <table id="tasks">
+    <thead>
+      <tr><th>PID</th><th>도착 시간</th><th>버스트 타임</th><th>비고</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div id="step-controls">
+    <button id="stepBack">Step Back</button>
+    <button id="stepNext">Step Next</button>
+    <span id="stepInfo">Step: 0</span>
+  </div>
+  <div id="gantt"></div>
+  <div id="snapshot"></div>
+
+  <script>
+    const tbody = document.querySelector('#tasks tbody');
+    let pidCounter = 1;
+    let records = [], step = 0;
+
+    document.getElementById('add').addEventListener('click', () => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>P${pidCounter}</td>
+        <td><input type="number" value="0" class="arrival" min="0"></td>
+        <td><input type="number" value="1" class="burst" min="1"></td>
+        <td><button class="remove">삭제</button></td>`;
+      tbody.appendChild(tr);
+      pidCounter++;
+    });
+    document.getElementById('random').addEventListener('click', () => {
+      const arr = Math.floor(Math.random() * 10);
+      const burst = Math.floor(Math.random() * 10) + 1;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>P${pidCounter}</td>
+        <td><input type="number" value="${arr}" class="arrival" min="0"></td>
+        <td><input type="number" value="${burst}" class="burst" min="1"></td>
+        <td><button class="remove">삭제</button></td>`;
+      tbody.appendChild(tr);
+      pidCounter++;
+    });
+    tbody.addEventListener('click', e => { if (e.target.classList.contains('remove')) e.target.closest('tr').remove(); });
+
+    function getTasks() {
+      return [...tbody.querySelectorAll('tr')].map(r => ({
+        pid: r.children[0].textContent,
+        arrival: parseInt(r.querySelector('.arrival').value, 10),
+        burst: parseInt(r.querySelector('.burst').value, 10),
+        rem: 0
+      }));
+    }
+
+    function scheduleStep(algo, tasks, quantum) {
+      let time = 0, done = 0;
+      tasks.forEach(t => t.rem = t.burst);
+      const ready = [];
+      let current = null, qUsed = 0;
+      const rec = [];
+      // 초기 스냅샷
+      tasks.filter(p => p.arrival === 0).forEach(p => ready.push(p));
+      rec.push({ running: null, queue: ready.map(p=>`${p.pid}(${p.rem})`), time });
+
+      while (done < tasks.length) {
+        // 도착 추가
+        tasks.filter(p => p.arrival === time).forEach(p => ready.push(p));
+        // 프로세스 선택
+        if (algo === 'SRTF') {
+          const all = current && current.rem>0 ? [...ready, current] : [...ready];
+          if (all.length) {
+            all.sort((a,b)=>a.rem-b.rem);
+            if (all[0] !== current) { if (current && current.rem>0) ready.push(current); current = all[0]; qUsed = 0; ready.splice(ready.indexOf(current),1); }
+          }
+        } else if (algo === 'RR') {
+          if (!current || qUsed >= quantum || current.rem === 0) {
+            if (current && current.rem>0) ready.push(current);
+            current = ready.shift() || null;
+            qUsed = 0;
+          }
+        } else if (algo === 'FCFS' || algo === 'SJF' || algo === 'MLFQ') {
+          if (!current) {
+            if (algo === 'SJF') ready.sort((a,b)=>a.burst-b.burst);
+            current = ready.shift() || null;
+          }
+        }
+        // 실행
+        if (current) {
+          current.rem--; qUsed++;
+          rec.push({ running: current.pid, queue: ready.map(p=>`${p.pid}(${p.rem})`), time });
+          if (current.rem === 0) { done++; current = null; qUsed = 0; }
+        } else {
+          rec.push({ running: null, queue: ready.map(p=>`${p.pid}(${p.rem})`), time });
+        }
+        time++;
+      }
+      return rec;
+    }
+
+    function drawSnapshot() {
+      const container = document.getElementById('gantt');
+      container.innerHTML = '';
+      const unit = 40;
+      const maxTime = records.length ? records[records.length-1].time : 0;
+      // 격자와 레이블
+      for (let t = 0; t <= maxTime; t += 5) {
+        const lbl = document.createElement('div');
+        lbl.className = 'grid-label';
+        lbl.style.left = `${t * unit - 5}px`;
+        lbl.textContent = t;
+        container.appendChild(lbl);
+      }
+      // 빨간 현재 시간선
+      const curLine = document.createElement('div');
+      curLine.style.position = 'absolute';
+      curLine.style.left = `${step * unit}px`;
+      curLine.style.top = '0';
+      curLine.style.height = '100%';
+      curLine.style.width = '2px';
+      curLine.style.background = 'red';
+      container.appendChild(curLine);
+      // 연속 세그먼트 합치기
+      const segments = [];
+      for (let i = 1; i <= step; i++) {
+        const r = records[i];
+        if (!r.running) continue;
+        const start = r.time;
+        const pid = r.running;
+        if (segments.length && segments[segments.length-1].pid === pid && segments[segments.length-1].end === start) {
+          segments[segments.length-1].end++;
+        } else {
+          segments.push({ pid, start, end: start+1 });
+        }
+      }
+      // 세그먼트 그리기
+      segments.forEach(s => {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.left = `${s.start * unit}px`;
+        bar.style.width = `${(s.end - s.start) * unit}px`;
+        bar.style.top = `${(parseInt(s.pid.substring(1)) - 1) * 35 + 20}px`;
+        let color;
+        do { color = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'); }
+        while (color.toLowerCase() === 'ffffff');
+        bar.style.background = `#${color}`;
+        bar.textContent = s.pid;
+        container.appendChild(bar);
+      });
+      // 정보 표시
+      const snap = records[step];
+      document.getElementById('stepInfo').textContent = `Step: ${step}, Time: ${snap.time}`;
+      document.getElementById('snapshot').textContent = `큐 상태: [${snap.queue.join(', ')}] 현재 실행: ${snap.running || 'Idle'}`;
+    }
+
+    document.getElementById('init').addEventListener('click', () => {
+      const tasks = getTasks();
+      const algo = document.getElementById('algo').value;
+      const quantum = parseInt(document.getElementById('quantum').value, 10) || 4;
+      records = scheduleStep(algo, tasks, quantum);
+      step = 0;
+      drawSnapshot();
+    });
+    document.getElementById('stepNext').addEventListener('click', () => { if (step < records.length - 1) step++; drawSnapshot(); });
+    document.getElementById('stepBack').addEventListener('click', () => { if (step > 0) step--; drawSnapshot(); });
+  </script>
+</body>
+</html>
