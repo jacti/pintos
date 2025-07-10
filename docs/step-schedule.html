@@ -6,19 +6,20 @@
   <title>스케줄러 정책 시각화 (단계별)</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
-    table { border-collapse: collapse; margin-bottom: 20px; width: 100%; }
+    table { border-collapse: collapse; margin-bottom: 10px; width: 100%; }
     table, th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
     #controls { margin-bottom: 10px; }
     button, select, input { margin-right: 10px; }
+    #step-controls { margin-top: 10px; }
     #gantt {
       position: relative;
-      margin-top: 20px;
+      margin-top: 10px;
       border: 1px solid #333;
-      height: 240px;
+      height: 300px;
       overflow-x: auto;
       background-image: linear-gradient(to right, #ccc 1px, transparent 1px);
       background-size: 40px 100%;
-      padding-top: 20px;
+      padding-top: 40px;
     }
     .bar {
       position: absolute;
@@ -30,9 +31,23 @@
       border-radius: 4px;
       font-size: 0.9em;
     }
+    .queue-box {
+      position: absolute;
+      border: 1px dashed #666;
+      height: 30px;
+      width: 100%;
+      opacity: 0.1;
+    }
+    .queue-label {
+      position: absolute;
+      left: 0;
+      font-size: 0.8em;
+      color: #333;
+      padding: 0 4px;
+      background: #fff;
+    }
     .grid-label { position: absolute; top: 0; font-size: 0.8em; color: #333; background: #fff; padding: 0 2px; }
     #snapshot { margin-top: 10px; font-size: 0.9em; }
-    #step-controls { margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -67,14 +82,14 @@
   <script>
     const tbody = document.querySelector('#tasks tbody');
     let pidCounter = 1;
-    let records = [], step = 0;
+    let records = [], step = 0, currentAlgo = '';
 
     document.getElementById('add').addEventListener('click', () => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>P${pidCounter}</td>
-        <td><input type="number" value="0" class="arrival" min="0"></td>
-        <td><input type="number" value="1" class="burst" min="1"></td>
-        <td><button class="remove">삭제</button></td>`;
+      tr.innerHTML = `<td>P${pidCounter}</td>` +
+                     `<td><input type="number" value="0" class="arrival" min="0"></td>` +
+                     `<td><input type="number" value="1" class="burst" min="1"></td>` +
+                     `<td><button class="remove">삭제</button></td>`;
       tbody.appendChild(tr);
       pidCounter++;
     });
@@ -82,10 +97,10 @@
       const arr = Math.floor(Math.random() * 10);
       const burst = Math.floor(Math.random() * 10) + 1;
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>P${pidCounter}</td>
-        <td><input type="number" value="${arr}" class="arrival" min="0"></td>
-        <td><input type="number" value="${burst}" class="burst" min="1"></td>
-        <td><button class="remove">삭제</button></td>`;
+      tr.innerHTML = `<td>P${pidCounter}</td>` +
+                     `<td><input type="number" value="${arr}" class="arrival" min="0"></td>` +
+                     `<td><input type="number" value="${burst}" class="burst" min="1"></td>` +
+                     `<td><button class="remove">삭제</button></td>`;
       tbody.appendChild(tr);
       pidCounter++;
     });
@@ -104,41 +119,75 @@
       let time = 0, done = 0;
       tasks.forEach(t => t.rem = t.burst);
       const ready = [];
-      let current = null, qUsed = 0;
+      const mlfq = [[], [], []];
+      let current = null, qLevel = 0, qUsed = 0;
       const rec = [];
-      // 초기 스냅샷
-      tasks.filter(p => p.arrival === 0).forEach(p => ready.push(p));
-      rec.push({ running: null, queue: ready.map(p=>`${p.pid}(${p.rem})`), time });
+      rec.push({ running: null, queue: [], mQueues: mlfq.map(q => []), level: null, time });
 
       while (done < tasks.length) {
-        // 도착 추가
-        tasks.filter(p => p.arrival === time).forEach(p => ready.push(p));
-        // 프로세스 선택
-        if (algo === 'SRTF') {
-          const all = current && current.rem>0 ? [...ready, current] : [...ready];
-          if (all.length) {
-            all.sort((a,b)=>a.rem-b.rem);
-            if (all[0] !== current) { if (current && current.rem>0) ready.push(current); current = all[0]; qUsed = 0; ready.splice(ready.indexOf(current),1); }
+        tasks.forEach(p => {
+          if (p.arrival === time) {
+            if (algo === 'MLFQ') mlfq[0].push(p);
+            else ready.push(p);
           }
+        });
+
+        if (algo === 'FCFS') {
+          if (!current) current = ready.shift() || null;
+        } else if (algo === 'SJF') {
+          if (!current) { ready.sort((a,b) => a.burst - b.burst); current = ready.shift() || null; }
+        } else if (algo === 'SRTF') {
+          if (current) ready.push(current);
+          const all = ready.concat(current || []);
+          all.sort((a,b) => a.rem - b.rem);
+          current = all.shift() || null;
+          ready.length = 0; all.forEach(p => ready.push(p));
         } else if (algo === 'RR') {
           if (!current || qUsed >= quantum || current.rem === 0) {
-            if (current && current.rem>0) ready.push(current);
+            if (current && current.rem > 0) ready.push(current);
             current = ready.shift() || null;
             qUsed = 0;
           }
-        } else if (algo === 'FCFS' || algo === 'SJF' || algo === 'MLFQ') {
-          if (!current) {
-            if (algo === 'SJF') ready.sort((a,b)=>a.burst-b.burst);
-            current = ready.shift() || null;
+        } else if (algo === 'MLFQ') {
+          if (!current || qUsed >= [4,8,Infinity][qLevel] || current.rem === 0) {
+            if (current) {
+              // 우선순위 하향: 레벨0->1, 레벨1->2, 레벨2 유지
+              const nextLevel = Math.min(qLevel + 1, 2);
+              mlfq[nextLevel].push(current);
+            }
+            // 다음 작업 선택: 높은 레벨 큐 우선
+            let found = false;
+            for (let lvl = 0; lvl < 3; lvl++) {
+              if (mlfq[lvl].length) {
+                current = mlfq[lvl].shift();
+                qLevel = lvl;
+                qUsed = 0;
+                found = true;
+                break;
+              }
+            }
+            if (!found) current = null;
           }
         }
-        // 실행
+
         if (current) {
           current.rem--; qUsed++;
-          rec.push({ running: current.pid, queue: ready.map(p=>`${p.pid}(${p.rem})`), time });
+          rec.push({
+            running: current.pid,
+            queue: ready.map(p => p.pid + '(' + p.rem + ')'),
+            mQueues: mlfq.map(q => q.map(p => p.pid + '(' + p.rem + ')')),
+            level: (algo === 'MLFQ' ? qLevel : null),
+            time
+          });
           if (current.rem === 0) { done++; current = null; qUsed = 0; }
         } else {
-          rec.push({ running: null, queue: ready.map(p=>`${p.pid}(${p.rem})`), time });
+          rec.push({
+            running: null,
+            queue: ready.map(p => p.pid + '(' + p.rem + ')'),
+            mQueues: mlfq.map(q => q.map(p => p.pid + '(' + p.rem + ')')),
+            level: null,
+            time
+          });
         }
         time++;
       }
@@ -146,11 +195,9 @@
     }
 
     function drawSnapshot() {
-      const container = document.getElementById('gantt');
-      container.innerHTML = '';
+      const container = document.getElementById('gantt'); container.innerHTML = '';
       const unit = 40;
-      const maxTime = records.length ? records[records.length-1].time : 0;
-      // 격자와 레이블
+      const maxTime = records.length ? records[records.length - 1].time : 0;
       for (let t = 0; t <= maxTime; t += 5) {
         const lbl = document.createElement('div');
         lbl.className = 'grid-label';
@@ -158,57 +205,101 @@
         lbl.textContent = t;
         container.appendChild(lbl);
       }
-      // 빨간 현재 시간선
-      const curLine = document.createElement('div');
-      curLine.style.position = 'absolute';
-      curLine.style.left = `${step * unit}px`;
-      curLine.style.top = '0';
-      curLine.style.height = '100%';
-      curLine.style.width = '2px';
-      curLine.style.background = 'red';
-      container.appendChild(curLine);
-      // 연속 세그먼트 합치기
-      const segments = [];
-      for (let i = 1; i <= step; i++) {
-        const r = records[i];
-        if (!r.running) continue;
-        const start = r.time;
-        const pid = r.running;
-        if (segments.length && segments[segments.length-1].pid === pid && segments[segments.length-1].end === start) {
-          segments[segments.length-1].end++;
-        } else {
-          segments.push({ pid, start, end: start+1 });
+      const line = document.createElement('div');
+      line.style.position = 'absolute';
+      line.style.left = `${step * unit}px`;
+      line.style.top = '0';
+      line.style.height = '100%';
+      line.style.width = '2px';
+      line.style.background = 'red';
+      container.appendChild(line);
+      if (currentAlgo === 'MLFQ') {
+        ['Level0', 'Level1', 'Level2'].forEach((lvl, i) => {
+          const box = document.createElement('div');
+          box.className = 'queue-box';
+          box.style.top = `${i * 35 + 20}px`;
+          container.appendChild(box);
+          const label = document.createElement('div');
+          label.className = 'queue-label';
+          label.style.top = `${i * 35 + 20}px`;
+          label.textContent = lvl;
+          container.appendChild(label);
+        });
+        const segs = [];
+        for (let i = 1; i <= step; i++) {
+          const r = records[i];
+          if (!r.running) continue;
+          const start = r.time;
+          const lvl = r.level || 0;
+          if (segs.length && segs[segs.length - 1].pid === r.running && segs[segs.length - 1].end === start && segs[segs.length - 1].level === lvl) {
+            segs[segs.length - 1].end++;
+          } else {
+            segs.push({ pid: r.running, start, end: start + 1, level: lvl });
+          }
         }
+        segs.forEach(s => {
+          const bar = document.createElement('div');
+          bar.className = 'bar';
+          bar.style.left = `${s.start * unit}px`;
+          bar.style.width = `${(s.end - s.start) * unit}px`;
+          bar.style.top = `${s.level * 35 + 20}px`;
+          let color;
+          do { color = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'); } while (color === 'ffffff');
+          bar.style.background = `#${color}`;
+          bar.textContent = s.pid;
+          container.appendChild(bar);
+        });
+      } else {
+        const pids = [...new Set(records.map(r => r.running).filter(x => x))].sort((a, b) => {
+          const na = parseInt(a.replace(/^P/, ''), 10);
+          const nb = parseInt(b.replace(/^P/, ''), 10);
+          return na - nb;
+        });
+        const pidIndex = {};
+        pids.forEach((p, i) => pidIndex[p] = i);
+        const segs = [];
+        for (let i = 1; i <= step; i++) {
+          const r = records[i];
+          if (!r.running) continue;
+          const start = r.time;
+          const idx = pidIndex[r.running];
+          if (segs.length && segs[segs.length - 1].pid === r.running && segs[segs.length - 1].end === start) {
+            segs[segs.length - 1].end++;
+          } else {
+            segs.push({ pid: r.running, start, end: start + 1, idx });
+          }
+        }
+        segs.forEach(s => {
+          const bar = document.createElement('div');
+          bar.className = 'bar';
+          bar.style.left = `${s.start * unit}px`;
+          bar.style.width = `${(s.end - s.start) * unit}px`;
+          bar.style.top = `${s.idx * 35 + 20}px`;
+          let color;
+          do { color = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'); } while (color === 'ffffff');
+          bar.style.background = `#${color}`;
+          bar.textContent = s.pid;
+          container.appendChild(bar);
+        });
       }
-      // 세그먼트 그리기
-      segments.forEach(s => {
-        const bar = document.createElement('div');
-        bar.className = 'bar';
-        bar.style.left = `${s.start * unit}px`;
-        bar.style.width = `${(s.end - s.start) * unit}px`;
-        bar.style.top = `${(parseInt(s.pid.substring(1)) - 1) * 35 + 20}px`;
-        let color;
-        do { color = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'); }
-        while (color.toLowerCase() === 'ffffff');
-        bar.style.background = `#${color}`;
-        bar.textContent = s.pid;
-        container.appendChild(bar);
-      });
-      // 정보 표시
       const snap = records[step];
       document.getElementById('stepInfo').textContent = `Step: ${step}, Time: ${snap.time}`;
-      document.getElementById('snapshot').textContent = `큐 상태: [${snap.queue.join(', ')}] 현재 실행: ${snap.running || 'Idle'}`;
+      document.getElementById('snapshot').innerHTML =
+        currentAlgo === 'MLFQ' ?
+        `<div>MLFQ L0: [${snap.mQueues[0].join(', ')}]</div><div>MLFQ L1: [${snap.mQueues[1].join(', ')}]</div><div>MLFQ L2: [${snap.mQueues[2].join(', ')}]</div><div>Running: ${snap.running||'Idle'}</div>` :
+        `<div>Queue: [${snap.queue.join(', ')}]</div><div>Running: ${snap.running||'Idle'}</div>`;
     }
 
     document.getElementById('init').addEventListener('click', () => {
       const tasks = getTasks();
       const algo = document.getElementById('algo').value;
-      const quantum = parseInt(document.getElementById('quantum').value, 10) || 4;
+      currentAlgo = algo;
+      const quantum = parseInt(document.getElementById('quantum').value,10)||4;
       records = scheduleStep(algo, tasks, quantum);
       step = 0;
       drawSnapshot();
     });
-    document.getElementById('stepNext').addEventListener('click', () => { if (step < records.length - 1) step++; drawSnapshot(); });
+    document.getElementById('stepNext').addEventListener('click', () => { if (step < records.length-1) step++; drawSnapshot(); });
     document.getElementById('stepBack').addEventListener('click', () => { if (step > 0) step--; drawSnapshot(); });
   </script>
 </body>
