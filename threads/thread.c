@@ -13,7 +13,6 @@
 #include "intrinsic.h"
 #ifdef USERPROG
 #include "userprog/process.h"
-#include "thread.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -340,7 +339,6 @@ thread_wake_less (const struct list_elem *a,
  * 
  * @warning tick 시간 동안 sleep 하는 것이 아닌, tick 시각 까지 sleep 한다
  * @param ticks thread가 sleep할 시각
- * @warning interupt handler에서는 이 함수를 사용하면 안됨 (malloc을 쓰기 때문에)
  * @return void
  * @see https://www.notion.so/jactio/timer_sleep-22dc9595474e8016bb2ef8290608ba21?source=copy_link
  */
