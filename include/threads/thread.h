@@ -92,6 +92,11 @@ struct thread {
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
 
+	//	$feat/timer_sleep
+	/** @brief 스레드를 깨울 tick 시각 초기화 시 0*/
+	uint64_t wake_tick;
+	//	feat/timer_sleep
+
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
@@ -132,6 +137,11 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
+
+//	$feat/timer_sleep
+void thread_sleep(int64_t tick);
+void thread_awake(void);
+//	feat/timer_sleep
 
 int thread_get_priority (void);
 void thread_set_priority (int);
