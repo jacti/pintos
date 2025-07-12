@@ -320,13 +320,13 @@ thread_yield (void) {
  *
  * @param a 첫 번째 리스트 엘리먼트 (struct thread의 elem)
  * @param b 두 번째 리스트 엘리먼트 (struct thread의 elem)
- * @param aus UNUSED 매개변수 (사용되지 않음)
+ * @param aux UNUSED 매개변수 (사용되지 않음)
  * @return a가 가리키는 스레드의 wake_tick이 b보다 작으면 true, 그렇지 않으면 false
  */
 static bool
 thread_wake_less (const struct list_elem *a,
                   const struct list_elem *b,
-                  void *aus UNUSED) {
+                  void *aux UNUSED) {
     struct thread *t_a = list_entry(a, struct thread, elem);
     struct thread *t_b = list_entry(b, struct thread, elem);
     return t_a->wake_tick < t_b->wake_tick;
