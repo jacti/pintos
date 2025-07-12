@@ -27,6 +27,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+static struct list sleep_list; //	$feat/timer_sleep
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -109,6 +110,8 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+
+	list_init (&sleep_list);		//	$feat/timer_sleep
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -307,6 +310,83 @@ thread_yield (void) {
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
+
+/**
+ * @brief 스레드 리스트 요소를 깨울 시각(wake_tick) 기준으로 비교하는 함수
+ *
+ * 스케줄러의 Sleeping 스레드 목록에서, 두 리스트 엘리먼트가 가리키는
+ * struct thread 구조체에 정의된 wake_tick 값을 비교하여 정렬 순서를 결정할 때 사용됩니다.
+ *
+ * @param a 첫 번째 리스트 엘리먼트 (struct thread의 elem)
+ * @param b 두 번째 리스트 엘리먼트 (struct thread의 elem)
+ * @param aux UNUSED 매개변수 (사용되지 않음)
+ * @return a가 가리키는 스레드의 wake_tick이 b보다 작으면 true, 그렇지 않으면 false
+ */
+static bool
+thread_wake_less (const struct list_elem *a,
+                  const struct list_elem *b,
+                  void *aux UNUSED) {
+    struct thread *t_a = list_entry(a, struct thread, elem);
+    struct thread *t_b = list_entry(b, struct thread, elem);
+    return t_a->wake_tick < t_b->wake_tick;
+}
+
+
+/**
+ * @brief tick 시각까지 thread를 sleep 상태로 만든다
+ * 
+ * @branch feat/timer_sleep
+ * 
+ * @warning tick 시간 동안 sleep 하는 것이 아닌, tick 시각 까지 sleep 한다
+ * @param ticks thread가 sleep할 시각
+ * @return void
+ * @see https://www.notion.so/jactio/timer_sleep-22dc9595474e8016bb2ef8290608ba21?source=copy_link
+ */
+void thread_sleep(int64_t tick)
+{
+	enum intr_level old_level = intr_disable ();
+	int64_t cur = timer_ticks ();
+	struct thread *t = thread_current();
+	if(cur < tick){
+		t->wake_tick = tick;
+		list_insert_ordered(&sleep_list, &t->elem, thread_wake_less, NULL);
+		thread_block();
+	}
+	intr_set_level(old_level);
+}
+
+/**
+ * @brief Sleeping 상태의 스레드 중에서 지정된 시각에 도달한 스레드를 깨우는 함수
+ *
+ * sleep_list에 등록된 각 스레드의 wake_tick 값을 확인하여,
+ * 현재 타이머 틱(cur)이 wake_tick 이상인 스레드를 목록에서 제거하고
+ * thread_unblock()을 호출하여 Ready 상태로 전환합니다.
+ * sleep_list가 비어 있으면 즉시 반환합니다.
+ * 
+ * @branch feat/timer_sleep
+ * 
+ */
+void
+thread_awake (void) {
+
+    /* 깨울 스레드가 없으면 바로 반환 */
+    if (list_empty (&sleep_list))
+        return;
+
+    int64_t cur = timer_ticks ();
+    struct list_elem *e;
+    struct thread *t;
+
+    /* wake_tick이 지난 스레드를 순차적으로 깨움 */
+    for (e = list_begin (&sleep_list); e != list_end (&sleep_list); e = list_next (e)) {
+        t = list_entry (e, struct thread, elem);
+        if (t->wake_tick > cur)
+            break;
+        list_remove (e);
+        thread_unblock (t);
+    }
+}
+
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
