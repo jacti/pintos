@@ -28,6 +28,8 @@ bool lock_try_acquire (struct lock *);
 void lock_release (struct lock *);
 bool lock_held_by_current_thread (const struct lock *);
 
+struct thread* find_same_priority_in_donor_list(struct thread* holder, struct thread* donor);	//	$우선순위 기부
+
 /* Condition variable. */
 struct condition {
 	struct list waiters;        /* List of waiting threads. */

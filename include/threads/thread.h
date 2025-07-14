@@ -100,6 +100,12 @@ struct thread {
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
+	//	$우선순위 기부
+	struct lock* wait_on_lock;
+	struct list donor_list;
+	struct list_elem donor_elem;
+	//	우선순위 기부
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
@@ -147,6 +153,7 @@ void thread_awake(void);
 bool thread_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 // feat/thread_priority_less
 
+int get_effective_priority(struct thread *);	//	$우선순위 기부
 int thread_get_priority (void);
 void thread_set_priority (int);
 

@@ -13,6 +13,7 @@
 #include "intrinsic.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "thread.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -404,6 +405,10 @@ thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
 }
 
+int get_effective_priority(struct thread *t)
+{
+    return 0;
+}
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) {

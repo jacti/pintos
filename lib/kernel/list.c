@@ -262,7 +262,6 @@ list_pop_back (struct list *list) {
 	list_remove (back);
 	return back;
 }
-// 6 /2 + 50 * 78
 
 /* Returns the front element in LIST.
    Undefined behavior if LIST is empty. */
@@ -487,4 +486,15 @@ list_min (struct list *list, list_less_func *less, void *aux) {
 				min = e;
 	}
 	return min;
+}
+
+
+int list_extend(struct list *holder, struct list *donor)
+{
+    return 0;
+}
+
+struct list *list_extract(struct list *cur)
+{
+    return NULL;
 }

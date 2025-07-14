@@ -160,4 +160,10 @@ void list_unique (struct list *, struct list *duplicates,
 struct list_elem *list_max (struct list *, list_less_func *, void *aux);
 struct list_elem *list_min (struct list *, list_less_func *, void *aux);
 
+
+// $우선순위 기부
+   int list_extend(struct list *, struct list*);
+   struct list * list_extract(struct list *);
+// 우선순위 기부
+
 #endif /* lib/kernel/list.h */
