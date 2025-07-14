@@ -452,7 +452,6 @@ int get_effective_priority(struct thread *t) {
 int
 thread_get_priority (void) {
 	return get_effective_priority(thread_current ());
-	return get_effective_priority(thread_current ());
 }
 
 /* Sets the current thread's nice value to NICE. */
