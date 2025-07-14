@@ -226,7 +226,7 @@ bool
 thread_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 	struct thread *t_a = list_entry(a, struct thread, elem);
 	struct thread *t_b = list_entry(b, struct thread, elem);
-	return t_a->priority > t_b->priority;
+	return get_effective_priority(t_a) < get_effective_priority(t_b);
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -403,16 +403,20 @@ thread_awake (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+
+	//TODO: donor list에서 새로 설정된 priority보다 작은 donor들은 extract 함
 }
 
 int get_effective_priority(struct thread *t)
 {
-    return 0;
+	struct thread *donor_thread = list_entry(list_back(&t->donor_list),struct thread, donor_elem);
+    return donor_thread->priority;
 }
+
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) {
-	return thread_current ()->priority;
+	return get_effective_priority(thread_current ());
 }
 
 /* Sets the current thread's nice value to NICE. */

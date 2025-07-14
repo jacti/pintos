@@ -489,12 +489,31 @@ list_min (struct list *list, list_less_func *less, void *aux) {
 }
 
 
-int list_extend(struct list *holder, struct list *donor)
+int list_extend(struct list *dest, struct list *src)
 {
-    return 0;
+	/*
+	dest나 src가 null이면 에러
+	만약 src의 사이즈가 0이면 return 0
+
+	dest의 tail전 원소 d_end를 찾음
+	src의 head 다음 원소 s_start를 찾음
+	d_end , s_start 연결
+
+	src의 tail 전 원소 s_end를 찾음
+	s_end, src.tail 연결
+	return 0
+	*/
 }
 
-struct list *list_extract(struct list *cur)
+struct list *list_extract(struct list *list)
 {
-    return NULL;
+	// list보다 앞에 다른 원소가 있는지 확인
+		// (head -> next) -> prev != head
+	// list보다 뒤에 다른 원소가 있는지 확인
+		// (tail -> prev) -> next != tail
+	//	앞뒤에 원소가 둘 다 있으면 둘이 연결
+	
+	//	list 첫 원소가 head를 다시 가리키도록 연결
+	//	list의 끝 원소가 tail을 다시 가리키도록 연결
+	//	return list
 }
