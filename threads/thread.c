@@ -362,7 +362,7 @@ void thread_sleep(int64_t tick)
 	enum intr_level old_level = intr_disable ();
 	int64_t cur = timer_ticks ();
 	struct thread *t = thread_current();
-	if(cur < tick){
+	if(t != idle && cur < tick){
 		t->wake_tick = tick;
 		list_insert_ordered(&sleep_list, &t->elem, thread_wake_less, NULL);
 		thread_block();
@@ -384,22 +384,17 @@ void thread_sleep(int64_t tick)
 void
 thread_awake (void) {
 
-    /* 깨울 스레드가 없으면 바로 반환 */
-    if (list_empty (&sleep_list))
-        return;
-
     int64_t cur = timer_ticks ();
-    struct list_elem *e;
     struct thread *t;
 
     /* wake_tick이 지난 스레드를 순차적으로 깨움 */
-    for (e = list_begin (&sleep_list); e != list_end (&sleep_list); e = list_next (e)) {
-        t = list_entry (e, struct thread, elem);
-        if (t->wake_tick > cur)
+	while(!list_empty (&sleep_list)) {
+		t = list_entry(list_front(&sleep_list), struct thread, elem);
+		if (t->wake_tick > cur)
             break;
-        list_remove (e);
-        thread_unblock (t);
-    }
+		list_pop_front(&sleep_list);
+		thread_unblock(t);
+	}
 }
 
 

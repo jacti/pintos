@@ -262,6 +262,7 @@ list_pop_back (struct list *list) {
 	list_remove (back);
 	return back;
 }
+// 6 /2 + 50 * 78
 
 /* Returns the front element in LIST.
    Undefined behavior if LIST is empty. */
