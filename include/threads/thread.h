@@ -143,6 +143,10 @@ void thread_sleep(int64_t tick);
 void thread_awake(void);
 //	feat/timer_sleep
 
+// $feat/thread_priority_less
+bool thread_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+// feat/thread_priority_less
+
 int thread_get_priority (void);
 void thread_set_priority (int);
 

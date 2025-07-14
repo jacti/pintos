@@ -221,7 +221,7 @@ thread_create (const char *name, int priority,
  * @param aux 추가 전달 데이터 (사용되지 않음, NULL이 전달됨)
  * @return 첫 번째 스레드의 우선순위가 더 높으면 true, 두 번째 스레드의 우선순위가 더 높으면 false 
  */
-static bool
+bool
 thread_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 	struct thread *t_a = list_entry(a, struct thread, elem);
 	struct thread *t_b = list_entry(b, struct thread, elem);
