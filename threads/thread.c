@@ -226,7 +226,7 @@ bool
 thread_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 	struct thread *t_a = list_entry(a, struct thread, elem);
 	struct thread *t_b = list_entry(b, struct thread, elem);
-	return get_effective_priority(t_a) < get_effective_priority(t_b);
+	return get_effective_priority(t_a) > get_effective_priority(t_b);
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
