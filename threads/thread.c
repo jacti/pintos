@@ -226,7 +226,7 @@ bool
 thread_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 	struct thread *t_a = list_entry(a, struct thread, elem);
 	struct thread *t_b = list_entry(b, struct thread, elem);
-	return t_a->priority > t_b->priority;
+	return get_effective_priority(t_a) > get_effective_priority(t_b);
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -400,19 +400,58 @@ thread_awake (void) {
 
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
+/**
+ * @brief 
+ * @param new_priority 
+ */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	/*
+	현재 스레드의 우선순위 = 입력 받은 우선 순위
+	cur_priority = new_priority
+	
+	while로 donor_list를 순회하면서,
+	각 donor 스레드의 실질적인 우선순위(get_effective_priority)를 얻어옴
+	이 우선순위를 기준으로 기부를 유지할지 회수할지 판단하기 위해 사용
+
+	donor의 우선순위가 새 priority보다 작거나 같으면
+	  donor_list에서 해당 donor 이후 전체 리스트를 잘라냄
+	  
+	마지막 yield를 통해*/ 
 }
 
-int get_effective_priority(struct thread *t)
-{
-    return 0;
+/**
+ * @brief 주어진 스레드의 유효 우선순위(effective priority)를 반환하는 함수
+ *
+ * 우선순위 기부(priority donation)를 고려하여 donr_list의 가장 마지막(=가장 높은 우선순위라고 가정된)
+ * 기부자의 priority 값을 반환
+ * 단, `donor_list`는 **우선순위 오름차순**으로 정렬되야함
+ * `list_back()`이 가장 높은 우선순위의 기부자를 가리키는 구조임을 전제
+
+ * @param t 우선순위를 확인할 대상 스레드
+ * @return 기부를 고려한 현재 유효 우선순위 값
+ */
+int get_effective_priority(struct thread *t) {
+	struct thread *donor_thread = list_entry(list_back(&t->donor_list), struct thread, donor_elem);
+    return donor_thread->priority;
 }
+
+
 /* Returns the current thread's priority. */
+/**
+ * @brief 현재 실행 중인 스레드의 유효 우선순위(effective priority)를 반환하는 함수
+ *
+ * 현재 스레드의 원래 우선순위(`priority`)를 반환하는 것이 아니라,
+ * 우선순위 기부(priority donation) 상황을 고려하여 기부받은 우선순위가 존재할 경우,
+ * 그 중 가장 높은 우선순위를 반영한 값을 반환
+ *
+ * 내부적으로 `get_effective_priority()` 함수를 호출하여 실제 우선순위를 계산
+ *
+ * @return int 현재 스레드의 유효 우선순위 값
+ */
 int
 thread_get_priority (void) {
-	return thread_current ()->priority;
+	return get_effective_priority(thread_current ());
 }
 
 /* Sets the current thread's nice value to NICE. */

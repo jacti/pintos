@@ -4,14 +4,14 @@ priority-donate-one FAIL
 priority-donate-lower FAIL
 mlfqs-nice-2 FAIL
 priority-preempt FAIL
-alarm-simultaneous PASS
+alarm-simultaneous FAIL
 priority-donate-chain FAIL
 priority-condvar FAIL
 priority-donate-nest FAIL
-alarm-single PASS
+alarm-single FAIL
 priority-donate-multiple2 FAIL
 mlfqs-load-avg FAIL
-alarm-priority PASS
+alarm-priority FAIL
 mlfqs-block FAIL
 priority-fifo FAIL
 priority-sema FAIL
@@ -22,6 +22,6 @@ mlfqs-fair-2 FAIL
 priority-change FAIL
 alarm-negative PASS
 priority-donate-sema FAIL
-alarm-multiple PASS
+alarm-multiple FAIL
 mlfqs-load-1 FAIL
 mlfqs-nice-10 FAIL
