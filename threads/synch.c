@@ -190,7 +190,22 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 
-	sema_down (&lock->semaphore);
+	enum intr_level old_level;
+	old_level = intr_disable ();
+	if(! sema_try_down(&lock->semaphore)) {
+		struct thread *donor = thread_current(), *holder = lock->holder;
+		donor->wait_on_lock = lock;
+		/*
+		TODO : 우선순위 기부 로직
+		donor의 donor_list를 순회하며 이 lock을 쓰고있는 쓰레드 donor elem을 찾으면 list_extract
+		holder 의 donor list 제일 뒤에 donor의 donor list를 추가
+		*/
+		intr_set_level(old_level);
+		sema_down (&lock->semaphore);
+	} else{
+		intr_set_level(old_level);
+	}
+
 	lock->holder = thread_current ();
 }
 
@@ -223,9 +238,15 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
-
-	lock->holder = NULL;
-	sema_up (&lock->semaphore);
+	/*
+		TODO : 우선순위 가져오는 로직 구현
+		인터럽트 걸고
+		semaphore의 wait_list의 front를 holder의 donor_list에서 extract
+		lock->holder = NULL;
+		sema_up (&lock->semaphore);
+		인터럽트 풀기
+	*/
+	
 }
 
 /* Returns true if the current thread holds LOCK, false

@@ -226,7 +226,6 @@ bool
 thread_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 	struct thread *t_a = list_entry(a, struct thread, elem);
 	struct thread *t_b = list_entry(b, struct thread, elem);
-	// return t_a->priority > t_b->priority;
 	return get_effective_priority(t_a) > get_effective_priority(t_b);
 }
 
@@ -436,6 +435,7 @@ int get_effective_priority(struct thread *t) {
 	struct thread *donor_thread = list_entry(list_back(&t->donor_list), struct thread, donor_elem);
     return donor_thread->priority;
 }
+
 
 /* Returns the current thread's priority. */
 /**
