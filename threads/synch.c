@@ -250,6 +250,17 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
+
+	enum intr_level old_level = intr_disable();
+
+	if(!list_empty(&lock->semaphore.waiters)) {
+		struct thread *release_thread = list_front(&lock->semaphore.waiters);
+		list_extract(&release_thread->donor_list);
+		lock->holder = NULL;
+		sema_up (&lock->semaphore);
+	}
+	intr_set_level(old_level);
+	
 	/*
 		TODO : 우선순위 가져오는 로직 구현
 		인터럽트 걸고
