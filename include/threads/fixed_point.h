@@ -1,6 +1,9 @@
 #include <stdint.h>
 
-
+/**
+ * @brief 고정소수점 식별용 자료형. (원형은 int32_t)
+ * 
+ */
 typedef int32_t fixed_t;
 
 
