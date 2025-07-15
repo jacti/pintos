@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "fixed_point.h" // $Add/fixed_point_h
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -96,6 +97,29 @@ struct thread {
 	/** @brief 스레드를 깨울 tick 시각 초기화 시 0*/
 	uint64_t wake_tick;
 	//	feat/timer_sleep
+
+	//$Add/thread_set_nice
+	/**
+	 * @brief 프로세스의 nice 값 (우선순위 보정 값)
+	 *
+	 * 이 값은 유저가 임의로 설정할 수 있으며,
+	 * 우선순위 계산 시 사용
+	 *	값이 클수록 우선순위 낮아짐
+	 * @note 유효한 범위는 -20 ~ 20이며, 기본값은 0입니다.
+	 */
+	int nice;
+
+	/**
+	 * @brief 최근 CPU 점유율을 나타내는 고정소수점 값
+	 *
+	 * 이 값은 해당 스레드가 최근에 얼마나 자주 CPU를 점유했는지를 나타내며,
+	 * 스케줄러의 우선순위 계산에 사용
+	 * 값이 클수록 우선순위가 낮아짐
+	 *
+	 * @details 4틱마다 값이 갱신됩니다.
+	 */
+	fixed_t recent_cpu;
+	//Add/thread_set_nice
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
