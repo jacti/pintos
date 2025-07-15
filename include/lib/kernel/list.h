@@ -166,4 +166,6 @@ struct list_elem *list_min (struct list *, list_less_func *, void *aux);
    struct list * list_extract(struct list *);
 // 우선순위 기부
 
+struct list* find_list (struct list_elem *);
+
 #endif /* lib/kernel/list.h */

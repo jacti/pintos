@@ -532,3 +532,12 @@ struct list *list_extract(struct list *list)
 
 	return list;
 }
+
+struct list *find_list(struct list_elem *e)
+{
+	struct list_elem * cur= e;
+	while(cur->prev){
+		cur = cur->prev;
+	}
+    return (struct list*)cur;
+}

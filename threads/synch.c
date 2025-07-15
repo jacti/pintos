@@ -216,12 +216,14 @@ lock_acquire (struct lock *lock) {
 		struct thread *cur = holder, *cur_holder;
 		struct list_elem *donor_end = list_back(&donor->donor_list);
 
-		while((cur_holder = cur->wait_on_lock->holder) != NULL){
+		while(cur->wait_on_lock && (cur_holder = cur->wait_on_lock->holder) != NULL){
 			list_tail(&cur_holder->donor_list)->prev = donor_end;
 			donor_end->next = list_tail(&cur_holder->donor_list);
 			cur = cur_holder;
 		}
 
+		struct list * holder_list = find_list(&holder->elem);
+		list_sort(holder_list, thread_priority_less, NULL);
 		
 		sema_down (&lock->semaphore);
 	}
