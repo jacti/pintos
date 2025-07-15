@@ -66,7 +66,7 @@ typedef int32_t fixed_t;
  * @param y 고정소수점 값
  * @return (x * y) / F 결과 (fixed_t)
  */
-#define MUXFF_INT32(x, y) (((int32_t)(x)) * (y) / F)
+#define MUXFF_INT32(x, y) (((fixed_t)(x)) * (y) / F)
 
 /**
  * @brief 고정소수점 값 x에 정수 n을 곱합니다.
@@ -74,7 +74,7 @@ typedef int32_t fixed_t;
  * @param n int형 정수
  * @return x * n (fixed_t)
  */
-#define MUXFI_INT32(x, n) (((int32_t)(x)) * (n))
+#define MUXFI_INT32(x, n) (((fixed_t)(x)) * (n))
 
 /**
  * @brief 고정소수점 값 x를 y로 나눕니다.
@@ -82,7 +82,7 @@ typedef int32_t fixed_t;
  * @param y 고정소수점 값 (분모)
  * @return (x / y) * F 결과 (fixed_t)
  */
-#define DIVFF_INT32(x, y) (((int32_t)(x)) * F / (y))
+#define DIVFF_INT32(x, y) (((fixed_t)(x)) * F / (y))
 
 /**
  * @brief 고정소수점 값 x를 정수 n으로 나눕니다.
