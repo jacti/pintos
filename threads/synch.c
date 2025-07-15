@@ -256,9 +256,10 @@ lock_release (struct lock *lock) {
 	if(!list_empty(&lock->semaphore.waiters)) {
 		struct thread *release_thread = list_front(&lock->semaphore.waiters);
 		list_extract(&release_thread->donor_list);
-		lock->holder = NULL;
-		sema_up (&lock->semaphore);
+        release_thread->wait_on_lock = NULL;
 	}
+	lock->holder = NULL;
+	sema_up (&lock->semaphore);
 	intr_set_level(old_level);
 	
 	/*
