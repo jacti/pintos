@@ -197,9 +197,21 @@ lock_acquire (struct lock *lock) {
 		donor->wait_on_lock = lock;
 		/*
 		TODO : 우선순위 기부 로직
-		donor의 donor_list를 순회하며 이 lock을 쓰고있는 쓰레드 donor elem을 찾으면 list_extract
+		holder의 donor_list를 순회하며 이 lock을 쓰고있는 쓰레드 donor elem을 찾으면 list_extract
 		holder 의 donor list 제일 뒤에 donor의 donor list를 추가
 		*/
+
+		struct list_elem *e;
+		for (e = list_begin(&holder->donor_list); e != list_end(&holder->donor_list); e = list_next(e)) {
+			struct thread *existing_donor = list_entry(e, struct thread, donor_elem);
+			if (existing_donor->wait_on_lock == lock) {
+				list_extract(&existing_donor->donor_list);
+				break;
+			}
+		}
+		
+		list_extend(&holder->donor_list, &donor->donor_list);
+
 		intr_set_level(old_level);
 		sema_down (&lock->semaphore);
 	} else{
@@ -238,6 +250,18 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
+
+	enum intr_level old_level = intr_disable();
+
+	if(!list_empty(&lock->semaphore.waiters)) {
+		struct thread *release_thread = list_front(&lock->semaphore.waiters);
+		list_extract(&release_thread->donor_list);
+        release_thread->wait_on_lock = NULL;
+	}
+	lock->holder = NULL;
+	sema_up (&lock->semaphore);
+	intr_set_level(old_level);
+	
 	/*
 		TODO : 우선순위 가져오는 로직 구현
 		인터럽트 걸고

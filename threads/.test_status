@@ -16,11 +16,11 @@ mlfqs-block FAIL
 priority-fifo FAIL
 priority-sema FAIL
 mlfqs-recent-1 FAIL
-alarm-zero PASS
+alarm-zero FAIL
 mlfqs-load-60 FAIL
 mlfqs-fair-2 FAIL
 priority-change FAIL
-alarm-negative PASS
+alarm-negative FAIL
 priority-donate-sema FAIL
 alarm-multiple FAIL
 mlfqs-load-1 FAIL
