@@ -243,8 +243,9 @@ lock_release (struct lock *lock) {
 		인터럽트 걸고
 		semaphore의 wait_list의 front를 holder의 donor_list에서 extract
 		lock->holder = NULL;
-		sema_up (&lock->semaphore);
 		인터럽트 풀기
+		sema_up (&lock->semaphore);
+		
 	*/
 	
 }

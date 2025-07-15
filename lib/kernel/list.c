@@ -76,7 +76,7 @@ list_begin (struct list *list) {
 struct list_elem *
 list_next (struct list_elem *elem) {
 	ASSERT (is_head (elem) || is_interior (elem));
-	return elem->next;
+	return elem->next; 
 }
 
 /* Returns LIST's tail.
@@ -491,29 +491,41 @@ list_min (struct list *list, list_less_func *less, void *aux) {
 
 int list_extend(struct list *dest, struct list *src)
 {
-	/*
-	dest나 src가 null이면 에러
-	만약 src의 사이즈가 0이면 return 0
+	ASSERT(dest && src);
 
-	dest의 tail전 원소 d_end를 찾음
-	src의 head 다음 원소 s_start를 찾음
-	d_end , s_start 연결
+	if(list_empty(src)) {
+		return 0;
+	}
 
-	src의 tail 전 원소 s_end를 찾음
-	s_end, src.tail 연결
-	return 0
-	*/
+	struct list_elem *d_end = list_prev(list_tail(dest));
+	struct list_elem *s_start = list_front(src);
+
+	d_end->next = s_start;
+	s_start->prev = d_end;
+
+	struct list_elem *d_tail = list_tail(dest);
+	struct list_elem *s_end = list_prev(list_tail(src));
+
+	s_end->next = d_tail;
+	d_tail->prev = s_end;
+
+	return 0;
 }
 
 struct list *list_extract(struct list *list)
 {
-	// list보다 앞에 다른 원소가 있는지 확인
-		// (head -> next) -> prev != head
-	// list보다 뒤에 다른 원소가 있는지 확인
-		// (tail -> prev) -> next != tail
-	//	앞뒤에 원소가 둘 다 있으면 둘이 연결
-	
-	//	list 첫 원소가 head를 다시 가리키도록 연결
-	//	list의 끝 원소가 tail을 다시 가리키도록 연결
-	//	return list
+	ASSERT(list);
+	ASSERT(!list_empty(list))
+	struct list_elem *prev_elem = list_prev(list_next(list_head(list)));
+	struct list_elem *next_elem = list_next(list_prev(list_tail(list)));
+
+	if(prev_elem != list_head(list) && next_elem != list_tail(list)) {
+		prev_elem->next = next_elem;
+		next_elem->prev = prev_elem;
+	}
+
+	list_front(list)->prev = list_head(list);
+	list_back(list)->next = list_tail(list);
+
+	return list;
 }
