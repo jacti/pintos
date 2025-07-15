@@ -487,10 +487,13 @@ thread_get_nice (void) {
 }
 
 /* Returns 100 times the system load average. */
+/** @iizxcv @brief 100곱해서 정수형으로 리턴*/
 int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+
+	return CFTOI(MUXFI_INT32(load_avg,100));
+	
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
