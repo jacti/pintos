@@ -245,6 +245,8 @@ void
 thread_block (void) {
 	ASSERT (!intr_context ());
 	ASSERT (intr_get_level () == INTR_OFF);
+	
+
 	thread_current ()->status = THREAD_BLOCKED;
 	schedule ();
 }
@@ -422,6 +424,9 @@ thread_awake (void) {
  */
 void
 thread_set_priority (int new_priority) {
+
+	 
+	if(thread_mlfqs == 0){//$test-temp/mlfqs
 	struct thread *cur = thread_current();
 	cur->priority = new_priority;
 
@@ -441,6 +446,7 @@ thread_set_priority (int new_priority) {
 	}
 	
 	thread_yield();
+	}
 }
 
 /**
@@ -488,7 +494,8 @@ thread_set_nice (int nice UNUSED) {
 int
 thread_get_nice (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+	
+	return thread_current()->nice*100;
 }
 
 /* Returns 100 times the system load average. */
@@ -497,14 +504,13 @@ int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
 	return CFTOI(MUXFI_INT32(load_avg,100));
-	
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+	return CFTOI(MUXFI_INT32(thread_current()->recent_cpu,100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -749,10 +755,66 @@ static tid_t
 allocate_tid (void) {
 	static tid_t next_tid = 1;
 	tid_t tid;
-
+	
 	lock_acquire (&tid_lock);
 	tid = next_tid++;
 	lock_release (&tid_lock);
 
 	return tid;
 }
+//$test-temp/mlfqs
+/**
+ * @brief 시스템의 load_avg 값을 갱신합니다.
+ *
+ * load_avg는 지난 1분 동안 시스템이 얼마나 바빴는지를 나타내는 값으로,
+ * 아래 수식으로 계산됩니다:
+ *
+ * load_avg = (59/60) * load_avg + (1/60) * ready_threads
+ *
+ * @details ready_list에 있는 스레드 수를 기반으로 계산합니다.
+ */
+void load_avg_update(void) {
+	load_avg = ADDFF_F(MUXFF_INT32(DIVFI_INT32(CITOF(59), 60), load_avg),MUXFI_INT32(DIVFI_INT32(CITOF(1), 60), get_list_thread(&ready_list))
+	);
+}
+
+/**
+ * @brief 모든 스레드의 recent_cpu 값을 갱신합니다.
+ *
+ * recent_cpu는 스레드가 최근 얼마나 CPU를 사용했는지를 나타내며,
+ * 다음 수식에 따라 재계산됩니다:
+ *
+ * recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice
+ *
+ * @details 이 함수는 all_list에 있는 모든 스레드에 대해 값을 갱신해야 합니다.
+ */
+void threads_recent_update(void) {
+	struct list_elem* e;
+	struct thread* t;
+
+	// decay = (2*load_avg)/(2*load_avg + 1)
+	fixed_t decay = DIVFF_INT32(MUXFI_INT32(load_avg, 2),
+	                             ADDFF_F(MUXFI_INT32(load_avg, 2), CITOF(1)));
+
+	for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
+		t = list_entry(e, struct thread, elem);
+		t->recent_cpu = ADDFF_F(MUXFF_INT32(decay, t->recent_cpu), CITOF(t->nice));
+	}
+}
+
+/**
+ * @brief 리스트에 포함된 스레드 수를 계산합니다.
+ *
+ * @param li 카운트할 리스트 포인터 (예: ready_list)
+ * @return 리스트에 포함된 thread 개수
+ */
+int get_list_thread(struct list *li) {
+	struct list_elem* e;
+	int count = 0;
+	for (e = list_begin(li); e != list_end(li); e = list_next(e)) {
+		count++;
+	}
+	return thread_current() != idle_thread ? count++ : count ;
+}
+
+//test-temp/mlfqs

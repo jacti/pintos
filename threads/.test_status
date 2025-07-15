@@ -14,7 +14,7 @@ mlfqs-load-avg FAIL
 alarm-priority PASS
 mlfqs-block FAIL
 priority-fifo PASS
-priority-sema FAIL
+priority-sema PASS
 mlfqs-recent-1 FAIL
 alarm-zero PASS
 mlfqs-load-60 FAIL
