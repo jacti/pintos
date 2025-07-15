@@ -774,7 +774,11 @@ allocate_tid (void) {
  * @details ready_list에 있는 스레드 수를 기반으로 계산합니다.
  */
 void load_avg_update(void) {
-	load_avg = ADDFF_F(MUXFF_INT32(DIVFI_INT32(CITOF(59), 60), load_avg),MUXFI_INT32(DIVFI_INT32(CITOF(1), 60), get_list_thread(&ready_list))
+	load_avg = ADDFF_F(
+		MUXFF_INT32(
+			DIVFI_INT32(CITOF(59), 60), load_avg),
+		MUXFI_INT32(
+			DIVFI_INT32(CITOF(1), 60), (get_count_threads()))
 	);
 }
 
@@ -808,12 +812,16 @@ void threads_recent_update(void) {
  * @param li 카운트할 리스트 포인터 (예: ready_list)
  * @return 리스트에 포함된 thread 개수
  */
-int get_list_thread(struct list *li) {
+int get_count_threads(void) {
 	struct list_elem* e;
 	int count = 0;
-	for (e = list_begin(li); e != list_end(li); e = list_next(e)) {
+	for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
 		count++;
 	}
+	for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e)) {
+		count++;
+	}
+	
 	return thread_current() != idle_thread ? count++ : count ;
 }
 

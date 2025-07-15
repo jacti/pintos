@@ -188,7 +188,7 @@ int thread_get_load_avg (void);
 
 void load_avg_update(void);
 void threads_recent_update(void);
-int get_list_thread(struct list *li);
+int get_count_threads(void);
 
 void do_iret (struct intr_frame *tf);
 
