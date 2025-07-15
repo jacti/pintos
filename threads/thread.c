@@ -56,6 +56,10 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+//$Add/MLFQ_thread_elem
+static fixed_t load_avg = 0; /** @brief 전역변수: 부하 평균량  */
+//Add/MLFQ_thread_elem
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
