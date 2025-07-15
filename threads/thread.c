@@ -210,6 +210,8 @@ thread_create (const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock (t);
+	
+	thread_yield();
 
 	return tid;
 }
@@ -401,23 +403,40 @@ thread_awake (void) {
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 /**
- * @brief 
- * @param new_priority 
+ * @brief 현재 스레드의 우선순위를 새로운 값으로 설정하고, 우선순위 기부 상황을 재조정하는 함수
+ * 
+ * 현재 스레드의 우선순위가 변경될 때, 기존에 우선순위를 기부받고 있던 donor_list를 검사하여
+ * 더 이상 기부가 필요하지 않은 스레드들을 제거합니다.
+ * 
+ * 동작 과정:
+ * 1. 현재 스레드의 우선순위를 new_priority로 업데이트
+ * 2. donor_list의 각 기부자(donor)를 순회
+ * 3. 각 기부자의 유효 우선순위가 새로운 우선순위보다 낮거나 같으면 해당 기부자를 donor_list에서 제거
+ * 4. 우선순위 변경 후 스케줄링을 위해 thread_yield() 호출
+ * 
+ * @param new_priority 설정할 새로운 우선순위 값
  */
 void
 thread_set_priority (int new_priority) {
-	/*
-	현재 스레드의 우선순위 = 입력 받은 우선 순위
-	cur_priority = new_priority
-	
-	while로 donor_list를 순회하면서,
-	각 donor 스레드의 실질적인 우선순위(get_effective_priority)를 얻어옴
-	이 우선순위를 기준으로 기부를 유지할지 회수할지 판단하기 위해 사용
+	struct thread *cur = thread_current();
+	cur->priority = new_priority;
 
-	donor의 우선순위가 새 priority보다 작거나 같으면
-	  donor_list에서 해당 donor 이후 전체 리스트를 잘라냄
-	  
-	마지막 yield를 통해*/ 
+	struct list_elem *prev = list_front(&cur->donor_list);
+	struct list_elem *e = list_next(prev);
+	while (e != list_tail(&cur->donor_list)) {
+		prev = e->prev;
+		struct thread *donor = list_entry(e, struct thread, donor_elem);
+		int donor_priority = get_effective_priority(donor);
+
+		if (donor_priority <= new_priority) {
+			list_extract(&donor->donor_list);
+			e = list_next(prev);
+		} else {
+			e = list_next(e);
+		}
+	}
+	
+	thread_yield();
 }
 
 /**
