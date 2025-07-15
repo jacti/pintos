@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "fixed_point.h" // $Add/fixed_point_h
 #ifdef VM
 #include "vm/vm.h"
 #endif
