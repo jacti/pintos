@@ -186,6 +186,10 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void load_avg_update(void);
+void threads_recent_update(void);
+int get_list_thread(struct list *li);
+
 void do_iret (struct intr_frame *tf);
 
 #endif /* threads/thread.h */
