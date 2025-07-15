@@ -162,10 +162,9 @@ struct list_elem *list_min (struct list *, list_less_func *, void *aux);
 
 
 // $우선순위 기부
-   int list_extend(struct list *, struct list*);
-   struct list * list_extract(struct list *);
-// 우선순위 기부
-
+int list_extend(struct list *, struct list*);
+struct list * list_extract(struct list *);
 struct list* find_list (struct list_elem *);
+// 우선순위 기부
 
 #endif /* lib/kernel/list.h */

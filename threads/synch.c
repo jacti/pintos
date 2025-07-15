@@ -116,7 +116,7 @@ sema_up (struct semaphore *sema) {
 					struct thread, elem));
 	sema->value++;
 
-	thread_yield();
+	thread_yield();  // 높은 우선순위 스레드가 대기 상태에서 깨어날 때, 즉시 CPU를 점유할 수 있도록 보장
 	intr_set_level (old_level);
 }
 
@@ -186,6 +186,33 @@ lock_init (struct lock *lock) {
    interrupt handler.  This function may be called with
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
+/**
+ * @brief 락을 획득하고 우선순위 기부를 처리하는 함수
+ * 
+ * 락이 이미 다른 스레드에 의해 보유되고 있을 때, 현재 스레드의 우선순위를
+ * 락 보유자에게 기부하여 우선순위 역전 문제를 해결
+ * 
+ * 우선순위 기부는 다음과 같은 상황에서 발생합니다:
+ * - 높은 우선순위 스레드가 낮은 우선순위 스레드가 보유한 락을 기다릴 때
+ * - 기부 체인이 형성되어 우선순위가 연쇄적으로 전파될 때
+ * 
+ * 동작 과정:
+ * 1. 락 획득 시도 (sema_try_down)
+ * 2. 실패 시 우선순위 기부 로직 실행:
+ *    a) 중복 기부 제거: 같은 락을 기다리는 기존 기부자 찾아서 제거
+ *    b) 새로운 기부 관계 설정: donor의 donor_list를 holder에 추가
+ *    c) 기부 체인 전파: holder가 다른 락을 기다린다면 기부 체인 확장
+ *    d) 우선순위 재정렬: 기부 후 우선순위 순서로 정렬
+ * 3. 락 대기 (sema_down)
+ * 4. 락 보유자 설정
+ * 
+ * 주의사항:
+ * - 인터럽트가 비활성화된 상태에서 실행되어야 함
+ * - donor_list는 우선순위 순서로 정렬되어야 함
+ * - 기부 체인은 무한 루프를 방지하기 위해 주의 깊게 처리
+ * 
+ * @param lock 획득할 락
+ */
 void
 lock_acquire (struct lock *lock) {
 	ASSERT (lock != NULL);
@@ -197,13 +224,8 @@ lock_acquire (struct lock *lock) {
 	if(! sema_try_down(&lock->semaphore)) {
 		struct thread *donor = thread_current(), *holder = lock->holder;
 		donor->wait_on_lock = lock;
-		/*
-		TODO : 우선순위 기부 로직
-		holder의 donor_list를 순회하며 이 lock을 쓰고있는 쓰레드 donor elem을 찾으면 list_extract
-		holder 의 donor list 제일 뒤에 donor의 donor list를 추가
-		*/
-
 		struct list_elem *e = list_next(list_begin(&holder->donor_list));
+
 		while (e != list_end(&holder->donor_list) && e->next != NULL) {
 			struct thread *existing_donor = list_entry(e, struct thread, donor_elem);
 			if (existing_donor->wait_on_lock == lock) {
@@ -212,6 +234,7 @@ lock_acquire (struct lock *lock) {
 			}
 			e = list_next(e);
 		}
+		
 		list_extend(&holder->donor_list, &donor->donor_list);
 		struct thread *cur = holder, *cur_holder;
 		struct list_elem *donor_end = list_back(&donor->donor_list);
@@ -257,6 +280,34 @@ lock_try_acquire (struct lock *lock) {
    An interrupt handler cannot acquire a lock, so it does not
    make sense to try to release a lock within an interrupt
    handler. */
+/**
+ * @brief 락을 해제하고 우선순위 기부를 정리하는 함수
+ * 
+ * 현재 스레드가 보유하고 있는 락을 해제하고, 해당 락을 기다리고 있던
+ * 스레드들에게 우선순위 기부를 정리
+ * 
+ * 우선순위 기부 정리는 다음과 같은 이유로 중요:
+ * - 락이 해제되면 기부 관계가 더 이상 필요하지 않음
+ * - 기부받은 우선순위를 원래 우선순위로 복원해야 함
+ * - 기부 체인에서 해당 스레드를 제거해야 함
+ * 
+ * 동작 과정:
+ * 1. 인터럽트 비활성화 (원자적 연산 보장)
+ * 2. 대기 중인 스레드의 우선순위 기부 정리:
+ *    - 세마포어 대기 리스트에서 첫 번째 스레드 선택
+ *    - 해당 스레드의 donor_list에서 기부 관계 제거
+ *    - wait_on_lock을 NULL로 설정하여 기다리는 락 없음을 표시
+ * 3. 락 보유자 정보 제거 (lock->holder = NULL)
+ * 4. 세마포어 해제 (대기 중인 스레드 깨우기)
+ * 5. 인터럽트 재활성화
+ * 
+ * 주의사항:
+ * - 인터럽트가 비활성화된 상태에서 실행되어야 함
+ * - 기부 정리 순서가 중요함 (기부자 제거 → 락 해제)
+ * - 세마포어 대기 리스트가 비어있을 수 있음
+ * 
+ * @param lock 해제할 락
+ */
 void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
@@ -272,17 +323,6 @@ lock_release (struct lock *lock) {
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
 	intr_set_level(old_level);
-	
-	/*
-		TODO : 우선순위 가져오는 로직 구현
-		인터럽트 걸고
-		semaphore의 wait_list의 front를 holder의 donor_list에서 extract
-		lock->holder = NULL;
-		인터럽트 풀기
-		sema_up (&lock->semaphore);
-		
-	*/
-	
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -332,6 +372,17 @@ cond_init (struct condition *cond) {
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
 
+/**
+ * @brief 조건 변수 대기자들의 우선순위를 비교하는 함수
+ * 
+ * 조건 변수의 대기자 리스트에서 두 세마포어 요소의 우선순위를 비교
+ * 각 세마포어 요소의 대기자 중 첫 번째 스레드의 유효 우선순위를 비교하여
+ * 우선순위가 높은 순서로 정렬
+ * 
+ * @param a 첫 번째 세마포어 요소 (struct semaphore_elem의 elem)
+ * @param b 두 번째 세마포어 요소 (struct semaphore_elem의 elem)
+ * @return a의 우선순위가 b보다 높으면 true, 그렇지 않으면 false
+ */
 int
 waiter_priority_less(struct list_elem *a, struct list_elem *b) {
 	struct semaphore_elem *w_a = list_entry(a,struct semaphore_elem, elem); 
@@ -365,6 +416,16 @@ cond_wait (struct condition *cond, struct lock *lock) {
    An interrupt handler cannot acquire a lock, so it does not
    make sense to try to signal a condition variable within an
    interrupt handler. */
+/**
+ * @brief 조건 변수에서 대기 중인 스레드 중 하나를 깨우는 함수
+ * 
+ * 조건 변수의 대기자 리스트에서 우선순위가 가장 높은 스레드를 선택하여 깨움
+ * 우선순위 기부를 고려한 유효 우선순위로 정렬한 후
+ * 가장 높은 우선순위의 스레드를 깨움
+ * 
+ * @param cond 시그널을 보낼 조건 변수
+ * @param lock UNUSED 매개변수 (사용되지 않음)
+ */
 void
 cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 	ASSERT (cond != NULL);
