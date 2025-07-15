@@ -115,6 +115,8 @@ sema_up (struct semaphore *sema) {
 		thread_unblock (list_entry (list_pop_front (&sema->waiters),
 					struct thread, elem));
 	sema->value++;
+
+	thread_yield();
 	intr_set_level (old_level);
 }
 
@@ -201,22 +203,29 @@ lock_acquire (struct lock *lock) {
 		holder 의 donor list 제일 뒤에 donor의 donor list를 추가
 		*/
 
-		struct list_elem *e;
-		for (e = list_begin(&holder->donor_list); e != list_end(&holder->donor_list); e = list_next(e)) {
+		struct list_elem *e = list_next(list_begin(&holder->donor_list));
+		while (e != list_end(&holder->donor_list) && e->next != NULL) {
 			struct thread *existing_donor = list_entry(e, struct thread, donor_elem);
 			if (existing_donor->wait_on_lock == lock) {
 				list_extract(&existing_donor->donor_list);
 				break;
 			}
+			e = list_next(e);
 		}
-		
 		list_extend(&holder->donor_list, &donor->donor_list);
+		struct thread *cur = holder, *cur_holder;
+		struct list_elem *donor_end = list_back(&donor->donor_list);
 
-		intr_set_level(old_level);
+		while((cur_holder = cur->wait_on_lock->holder) != NULL){
+			list_tail(&cur_holder->donor_list)->prev = donor_end;
+			donor_end->next = list_tail(&cur_holder->donor_list);
+			cur = cur_holder;
+		}
+
+		
 		sema_down (&lock->semaphore);
-	} else{
-		intr_set_level(old_level);
 	}
+	intr_set_level(old_level);
 
 	lock->holder = thread_current ();
 }
@@ -254,7 +263,7 @@ lock_release (struct lock *lock) {
 	enum intr_level old_level = intr_disable();
 
 	if(!list_empty(&lock->semaphore.waiters)) {
-		struct thread *release_thread = list_front(&lock->semaphore.waiters);
+		struct thread *release_thread = list_entry(list_front(&lock->semaphore.waiters),struct thread, elem);
 		list_extract(&release_thread->donor_list);
         release_thread->wait_on_lock = NULL;
 	}
