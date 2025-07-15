@@ -491,7 +491,6 @@ thread_get_nice (void) {
 int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
-
 	return CFTOI(MUXFI_INT32(load_avg,100));
 	
 }
