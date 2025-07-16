@@ -167,7 +167,9 @@ thread_tick (void) {
 
 	/* Enforce preemption. */
 	if (++thread_ticks >= TIME_SLICE)
+	{
 		intr_yield_on_return ();
+	}
 }
 
 /* Prints thread statistics. */
@@ -408,6 +410,9 @@ thread_awake (void) {
 		if (t->wake_tick > cur)
             break;
 		list_pop_front(&sleep_list);
+		if(thread_mlfqs){
+			t->priority = calaculate_priority(t->recent_cpu, t->nice);
+		}
 		thread_unblock(t);
 	}
 }
@@ -493,8 +498,6 @@ thread_set_nice (int nice) {
 	struct thread *t = thread_current();
 	t->nice = nice;
 	t->priority = calaculate_priority(t->recent_cpu, t->nice);
-	printf("set-nice-here, recent-cpu : %d \n", t->recent_cpu);
-	thread_yield();
 	intr_set_level(old_level);
 }
 
@@ -585,6 +588,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 
 	t->nice = 0;
 	t->recent_cpu =0;
+	if(thread_mlfqs) {
+		t->priority = calaculate_priority(t->recent_cpu, t->nice);
+	}
 
 
 	t->magic = THREAD_MAGIC;
@@ -802,18 +808,16 @@ static void threads_recent_update(void) {
 	struct thread* t;
 
 	// decay = (2*load_avg)/(2*load_avg + 1)
-	int decay = FTOI_N(DIVFF_F(MUXFI_F(load_avg, 2),
-	                             ADDFF_F(MUXFI_F(load_avg, 2), CITOF(1))));
+	fixed_t decay = DIVFF_F(MUXFI_F(load_avg, 2),
+	                             ADDFF_F(MUXFI_F(load_avg, 2), CITOF(1)));
+	t = thread_current();
+	t->recent_cpu = ADDFF_F(MUXFF_F(t->recent_cpu, decay), CITOF(t->nice));
 
 	for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
 		t = list_entry(e, struct thread, elem);
-		printf("decay : %d\n",decay);
-		printf("before cal :: tid: %d, recent_cpu: %d, nice: %d\n",t->tid, t->recent_cpu, t->nice);
-		t->recent_cpu = ADDFF_F(MUXFI_F(t->recent_cpu, decay), CITOF(t->nice));
-		printf("after cal :: tid: %d, recent_cpu: %d, nice: %d ",t->tid, t->recent_cpu, t->nice);
-		t->priority = calaculate_priority(t->recent_cpu, t->nice);
+		t->recent_cpu = ADDFF_F(MUXFF_F(t->recent_cpu, decay), CITOF(t->nice));
 	}
-	list_sort(&ready_list, thread_priority_less, NULL);
+	
 	t = thread_current();
 	t->priority = calaculate_priority(t->recent_cpu, t->nice);
 
@@ -827,8 +831,7 @@ static void threads_recent_update(void) {
 
 static int calaculate_priority(fixed_t recent_cpu, int nice) {
 	int priority = FTOI_N(CITOF(PRI_MAX) - DIVFI_F(recent_cpu,4) - CITOF(nice *2)) ;
-	printf("priority : %d, recent_cpu : %lld, nie : %d \n",priority,recent_cpu,nice);
-	return priority >= 0 ? priority : 0;
+	return priority >= PRI_MIN ? priority : PRI_MIN;
 }
 
 /**
@@ -840,7 +843,7 @@ static int calaculate_priority(fixed_t recent_cpu, int nice) {
 static size_t get_count_threads(void) {
 	size_t count = list_size(&ready_list);
 	// return count+1;
-	return thread_current() != idle_thread ? ++count : count ;
+	return thread_current() != idle_thread ? count+1 : count;
 }
 
 /** 
@@ -849,18 +852,22 @@ static size_t get_count_threads(void) {
 void mlfq_run_for_sec(void){
 	load_avg_update();
 	threads_recent_update();
+	// intr_yield_on_return();
+}
 
-	struct list_elem *e;
-	struct thread *t= thread_current();
-	printf("tick: %d\n",kernel_ticks);
-	printf("tid: %lld -> priority: %lld, nice: %lld, recent-cpu: %lld\n",t->tid, t->priority, t->nice, t->recent_cpu);
-	for(e=list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)){
-		t = list_entry(e,struct thread, elem);
-		printf("tid: %lld -> priority: %lld, nice: %lld, recent-cpu: %lld\n",t->tid, t->priority, t->nice, t->recent_cpu);
+void priority_update(void)
+{
+	struct thread *t = thread_current();
+	t->priority = calaculate_priority(t->recent_cpu, t->nice);
+	// printf("tid : %lld, priority : %lld, nice : %lld, recent-cpu : %lld\n", t->tid, t->priority, t->nice, t->recent_cpu);
+
+	for (struct list_elem *e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
+		t = list_entry(e, struct thread, elem);
+		t->priority = calaculate_priority(t->recent_cpu, t->nice);
+		// printf("tid : %lld, priority : %lld, nice : %lld, recent-cpu : %lld\n", t->tid, t->priority, t->nice, t->recent_cpu);
 	}
-
+	list_sort(&ready_list, thread_priority_less, NULL);
 	intr_yield_on_return();
-	
 }
 
 //test-temp/mlfqs

@@ -188,4 +188,9 @@ int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
 
+// $test-temp/mlfqs
+void mlfq_run_for_sec(void);
+void priority_update(void);
+// test-temp/mlfqs
+
 #endif /* threads/thread.h */

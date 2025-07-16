@@ -133,9 +133,13 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 	if (thread_mlfqs){
 		thread_current()->recent_cpu += F;
 		
-		if (ticks % 100 == 0 )
+		if (ticks % 100 == 0 ) {
 			mlfq_run_for_sec();
-
+		}
+		
+		if(ticks % 4 == 0) {
+			priority_update();
+		}
 	}
 	intr_set_level(old_level);
 }
