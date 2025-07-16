@@ -225,7 +225,7 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 	
-	thread_yield();
+	thread_yield();  // 스레드가 생성될 때, 생성된 스레드의 우선 순위가 높을 때 양보
 
 	return tid;
 }
@@ -594,9 +594,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 
 
 	t->magic = THREAD_MAGIC;
-	list_init(&t->donor_list);
 
-	list_push_back(&t->donor_list, &t->donor_elem);
+	list_init(&t->donor_list);  // 기부자 리스트 초기화
+	list_push_back(&t->donor_list, &t->donor_elem);  // 자신의 donor_elem을 추가하여 빈 리스트 방지
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
