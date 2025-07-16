@@ -22,7 +22,7 @@ typedef int32_t fixed_t;
  * @param x 변환할 고정소수점 값
  * @return int로 변환된 값 (x / F)
  */
-#define CFTOI(x) ((int)(x) >> 14)
+#define CFTOI(x) ((int) ((x) / F))
 
 /**
  * @brief 고정소수점 fixed_t 값을 정수로 변환합니다 (반올림).
@@ -69,7 +69,7 @@ typedef int32_t fixed_t;
  * @param y 고정소수점 값
  * @return (x * y) / F 결과 (fixed_t)
  */
-#define MUXFF_INT32(x, y) (((fixed_t)(x)) * (y) / F)
+#define MUXFF_F(x, y) ((fixed_t)(((int64_t)(x)) * ((int64_t)(y)) / F))
 
 /**
  * @brief 고정소수점 값 x에 정수 n을 곱합니다.
@@ -77,7 +77,7 @@ typedef int32_t fixed_t;
  * @param n int형 정수
  * @return x * n (fixed_t)
  */
-#define MUXFI_INT32(x, n) (((fixed_t)(x)) * (n))
+#define MUXFI_F(x, n) ((fixed_t)(((int64_t)(x)) * (n)))
 
 /**
  * @brief 고정소수점 값 x를 y로 나눕니다.
@@ -85,7 +85,7 @@ typedef int32_t fixed_t;
  * @param y 고정소수점 값 (분모)
  * @return (x / y) * F 결과 (fixed_t)
  */
-#define DIVFF_INT32(x, y) (((fixed_t)(x)) * F / (y))
+#define DIVFF_F(x, y) ((fixed_t)(((int64_t)(x)) * F / (y)))
 
 /**
  * @brief 고정소수점 값 x를 정수 n으로 나눕니다.
@@ -93,4 +93,4 @@ typedef int32_t fixed_t;
  * @param n int형 정수
  * @return x / n (fixed_t)
  */
-#define DIVFI_INT32(x, n) ((x) / (n))
+#define DIVFI_F(x, n) ((fixed_t)((x) / (n)))

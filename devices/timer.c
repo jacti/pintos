@@ -126,16 +126,18 @@ timer_print_stats (void) {
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
+	enum intr_level old_level = intr_disable();
 	ticks++;
 	thread_tick ();
 	thread_awake();					//	$feat/timer_sleep
 	if (thread_mlfqs){
+		thread_current()->recent_cpu += F;
 		
-		if (ticks / 100 == 0 )
+		if (ticks % 100 == 0 )
 			mlfq_run_for_sec();
-	
-	thread_current()->recent_cpu++;
+
 	}
+	intr_set_level(old_level);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

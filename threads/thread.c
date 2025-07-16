@@ -57,7 +57,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 bool thread_mlfqs;
 
 //$Add/MLFQ_thread_elem
-static fixed_t load_avg = 0; /** @brief 전역변수: 부하 평균량  */
+static fixed_t load_avg; /** @brief 전역변수: 부하 평균량  */
 //Add/MLFQ_thread_elem
 
 static void kernel_thread (thread_func *, void *aux);
@@ -71,7 +71,8 @@ static tid_t allocate_tid (void);
 
 //$test-temp/mlfqs-iizxcv
 static void threads_recent_update(void);
-static int get_count_threads(void);
+static int calaculate_priority(fixed_t recent_cpu, int nice);
+static size_t get_count_threads(void);
 static void load_avg_update(void);
 //test-temp/mlfqs-iizxcv
 
@@ -123,6 +124,7 @@ thread_init (void) {
 	list_init (&destruction_req);
 
 	list_init (&sleep_list);		//	$feat/timer_sleep
+	load_avg = 0;
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -429,25 +431,25 @@ thread_awake (void) {
 void
 thread_set_priority (int new_priority) {
 	
-	if(thread_mlfqs == 0){//$test-temp/mlfqs
-	struct thread *cur = thread_current();
-	cur->priority = new_priority;
+	if(thread_mlfqs == false) {//$test-temp/mlfqs
+		struct thread *cur = thread_current();
+		cur->priority = new_priority;
 
-	struct list_elem *prev = list_front(&cur->donor_list);
-	struct list_elem *e = list_next(prev);
-	while (e != list_tail(&cur->donor_list)) {
-		prev = e->prev;
-		struct thread *donor = list_entry(e, struct thread, donor_elem);
-		int donor_priority = get_effective_priority(donor);
+		struct list_elem *prev = list_front(&cur->donor_list);
+		struct list_elem *e = list_next(prev);
+		while (e != list_tail(&cur->donor_list)) {
+			prev = e->prev;
+			struct thread *donor = list_entry(e, struct thread, donor_elem);
+			int donor_priority = get_effective_priority(donor);
 
-		if (donor_priority <= new_priority) {
-			list_extract(&donor->donor_list);
-			e = list_next(prev);
-		} else {
-			e = list_next(e);
+			if (donor_priority <= new_priority) {
+				list_extract(&donor->donor_list);
+				e = list_next(prev);
+			} else {
+				e = list_next(e);
+			}
 		}
 	}
-}
 	
 	thread_yield();
 }
@@ -485,9 +487,15 @@ thread_get_priority (void) {
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) {
+thread_set_nice (int nice) {
 	/* TODO: Your implementation goes here */
-	thread_current()->nice = nice;
+	enum intr_level old_level = intr_disable();
+	struct thread *t = thread_current();
+	t->nice = nice;
+	t->priority = calaculate_priority(t->recent_cpu, t->nice);
+	printf("set-nice-here, recent-cpu : %d \n", t->recent_cpu);
+	thread_yield();
+	intr_set_level(old_level);
 }
 
 /* Returns the current thread's nice value. */
@@ -502,7 +510,7 @@ thread_get_nice (void) {
 int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
-	return CFTOI(MUXFI_INT32(load_avg,100));
+	return CFTOI(MUXFI_F(load_avg,100));
 	
 }
 
@@ -510,8 +518,7 @@ thread_get_load_avg (void) {
 int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
-	CFTOI(MUXFI_INT32(thread_current()->recent_cpu,100));
-	return 0;
+	return CFTOI(MUXFI_F(thread_current()->recent_cpu,100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -777,12 +784,7 @@ allocate_tid (void) {
  * @details ready_list에 있는 스레드 수를 기반으로 계산합니다.
  */
 static void load_avg_update(void) {
-	load_avg = ADDFF_F(
-		MUXFF_INT32(
-			DIVFI_INT32(CITOF(59), CITOF(60)), load_avg),
-		MUXFI_INT32(
-			DIVFI_INT32(CITOF(1), CITOF(60)), (get_count_threads()))
-	);
+	load_avg = DIVFI_F(ADDFF_F(MUXFI_F(load_avg, 59), CITOF(get_count_threads())), 60);
 }
 
 /**
@@ -800,18 +802,33 @@ static void threads_recent_update(void) {
 	struct thread* t;
 
 	// decay = (2*load_avg)/(2*load_avg + 1)
-	fixed_t decay = DIVFF_INT32(MUXFI_INT32(load_avg, 2),
-	                             ADDFF_F(MUXFI_INT32(load_avg, 2), CITOF(1)));
+	int decay = FTOI_N(DIVFF_F(MUXFI_F(load_avg, 2),
+	                             ADDFF_F(MUXFI_F(load_avg, 2), CITOF(1))));
 
 	for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
 		t = list_entry(e, struct thread, elem);
-		t->recent_cpu = ADDFF_F(MUXFF_INT32(decay, t->recent_cpu), CITOF(t->nice));
+		printf("decay : %d\n",decay);
+		printf("before cal :: tid: %d, recent_cpu: %d, nice: %d\n",t->tid, t->recent_cpu, t->nice);
+		t->recent_cpu = ADDFF_F(MUXFI_F(t->recent_cpu, decay), CITOF(t->nice));
+		printf("after cal :: tid: %d, recent_cpu: %d, nice: %d ",t->tid, t->recent_cpu, t->nice);
+		t->priority = calaculate_priority(t->recent_cpu, t->nice);
 	}
+	list_sort(&ready_list, thread_priority_less, NULL);
+	t = thread_current();
+	t->priority = calaculate_priority(t->recent_cpu, t->nice);
 
-	for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e)) {
-		t = list_entry(e, struct thread, elem);
-		t->recent_cpu = ADDFF_F(MUXFF_INT32(decay, t->recent_cpu), CITOF(t->nice));
-	}
+	// for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e)) {
+	// 	t = list_entry(e, struct thread, elem);
+	// 	t->recent_cpu = ADDFF_F(MUXFF_F(decay, t->recent_cpu), CITOF(t->nice));
+	// 	t->priority = PRI_MAX - CFTOI(DIVFI_F(t->recent_cpu,4)) - t->nice*2;
+	// }
+	// list_sort(&sleep_list, thread_priority_less, NULL);
+}
+
+static int calaculate_priority(fixed_t recent_cpu, int nice) {
+	int priority = FTOI_N(CITOF(PRI_MAX) - DIVFI_F(recent_cpu,4) - CITOF(nice *2)) ;
+	printf("priority : %d, recent_cpu : %lld, nie : %d \n",priority,recent_cpu,nice);
+	return priority >= 0 ? priority : 0;
 }
 
 /**
@@ -820,17 +837,10 @@ static void threads_recent_update(void) {
  * @param li 카운트할 리스트 포인터 (예: ready_list)
  * @return 리스트에 포함된 thread 개수
  */
-static int get_count_threads(void) {
-	struct list_elem* e;
-	int count = 0;
-	for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)) {
-		count++;
-	}
-	for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e)) {
-		count++;
-	}
-	
-	return thread_current() != idle_thread ? count++ : count ;
+static size_t get_count_threads(void) {
+	size_t count = list_size(&ready_list);
+	// return count+1;
+	return thread_current() != idle_thread ? ++count : count ;
 }
 
 /** 
@@ -839,7 +849,18 @@ static int get_count_threads(void) {
 void mlfq_run_for_sec(void){
 	load_avg_update();
 	threads_recent_update();
-	printf("load_avg %d threads-count %d : per seconds\n", thread_get_load_avg(),get_count_threads());
+
+	struct list_elem *e;
+	struct thread *t= thread_current();
+	printf("tick: %d\n",kernel_ticks);
+	printf("tid: %lld -> priority: %lld, nice: %lld, recent-cpu: %lld\n",t->tid, t->priority, t->nice, t->recent_cpu);
+	for(e=list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e)){
+		t = list_entry(e,struct thread, elem);
+		printf("tid: %lld -> priority: %lld, nice: %lld, recent-cpu: %lld\n",t->tid, t->priority, t->nice, t->recent_cpu);
+	}
+
+	intr_yield_on_return();
+	
 }
 
 //test-temp/mlfqs

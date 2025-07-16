@@ -116,7 +116,7 @@ struct thread {
 	 * 스케줄러의 우선순위 계산에 사용
 	 * 값이 클수록 우선순위가 낮아짐
 	 *
-	 * @details 4틱마다 값이 갱신됩니다.
+	 * @details 1틱마다 값이 갱신됩니다.
 	 */
 	fixed_t recent_cpu;
 	//Add/thread_set_nice
