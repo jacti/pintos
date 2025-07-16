@@ -129,6 +129,17 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
 	thread_awake();					//	$feat/timer_sleep
+	if (thread_mlfqs){
+		thread_current()->recent_cpu += F;
+		
+		if (ticks % 100 == 0 ) {
+			mlfq_run_for_sec();
+		}
+		
+		if(ticks % 4 == 0) {
+			priority_update();
+		}
+	}
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

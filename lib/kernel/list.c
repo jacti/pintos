@@ -75,8 +75,11 @@ list_begin (struct list *list) {
    undefined if ELEM is itself a list tail. */
 struct list_elem *
 list_next (struct list_elem *elem) {
+	if(!(is_head (elem) || is_interior (elem))){
+		printf("check here");
+	}
 	ASSERT (is_head (elem) || is_interior (elem));
-	return elem->next;
+	return elem->next; 
 }
 
 /* Returns LIST's tail.
@@ -262,7 +265,6 @@ list_pop_back (struct list *list) {
 	list_remove (back);
 	return back;
 }
-// 6 /2 + 50 * 78
 
 /* Returns the front element in LIST.
    Undefined behavior if LIST is empty. */
@@ -487,4 +489,101 @@ list_min (struct list *list, list_less_func *less, void *aux) {
 				min = e;
 	}
 	return min;
+}
+
+
+/**
+ * @brief 두 리스트를 연결하는 함수
+ * 
+ * 소스 리스트(src)의 모든 요소를 대상 리스트(dest)의 끝에 추가
+ * 소스 리스트는 비어있게 되고, 대상 리스트는 확장
+ * 
+ * 동작 과정:
+ * 1. 소스 리스트가 비어있으면 아무것도 하지 않음
+ * 2. 대상 리스트의 마지막 요소와 소스 리스트의 첫 번째 요소 연결
+ * 3. 소스 리스트의 마지막 요소와 대상 리스트의 테일 연결
+ * 4. 두 리스트가 하나로 합쳐짐
+ * 
+ * @param dest 확장할 대상 리스트
+ * @param src 대상 리스트에 추가할 소스 리스트
+ * @return 성공 시 0 반환
+ */
+int list_extend(struct list *dest, struct list *src)
+{
+	ASSERT(dest && src);
+
+	if(list_empty(src)) {
+		return 0;
+	}
+
+	struct list_elem *d_end = list_prev(list_tail(dest));
+	struct list_elem *s_start = list_front(src);
+
+	d_end->next = s_start;
+	s_start->prev = d_end;
+
+	struct list_elem *d_tail = list_tail(dest);
+	struct list_elem *s_end = list_prev(list_tail(src));
+
+	s_end->next = d_tail;
+	d_tail->prev = s_end;
+
+	return 0;
+}
+
+/**
+ * @brief 리스트에서 모든 요소를 추출하여 새로운 리스트로 만드는 함수
+ * 
+ * 원본 리스트에서 첫 번째와 마지막 요소를 제거하고, 그 요소들을
+ * 새로운 리스트로 만들어 반환. 원본 리스트는 비어있게 됨
+ * 
+ * 동작 과정:
+ * 1. 리스트의 첫 번째와 마지막 요소 사이의 연결을 끊음
+ * 2. 첫 번째 요소의 prev를 리스트 헤드로 설정
+ * 3. 마지막 요소의 next를 리스트 테일로 설정
+ * 4. 추출된 요소들로 구성된 새로운 리스트 반환
+ * 
+ * @param list 추출할 요소가 있는 원본 리스트
+ * @return 추출된 요소들로 구성된 새로운 리스트
+ */
+struct list *list_extract(struct list *list)
+{
+	ASSERT(list);
+	ASSERT(!list_empty(list))
+	struct list_elem *prev_elem = list_prev(list_next(list_head(list)));
+	struct list_elem *next_elem = list_next(list_prev(list_tail(list)));
+
+	if(prev_elem != list_head(list) && next_elem != list_tail(list)) {
+		prev_elem->next = next_elem;
+		next_elem->prev = prev_elem;
+	}
+
+	list_front(list)->prev = list_head(list);
+	list_back(list)->next = list_tail(list);
+
+	return list;
+}
+
+/**
+ * @brief 리스트 요소가 속한 리스트를 찾는 함수
+ * 
+ * 주어진 리스트 요소(elem)가 속한 리스트의 시작점(헤드)을 찾기
+ * 요소의 prev 포인터를 따라가면서 리스트의 시작점에 도달할 때까지
+ * 역방향으로 탐색
+ * 
+ * 동작 과정:
+ * 1. 주어진 요소에서 시작
+ * 2. prev 포인터를 따라 역방향으로 이동
+ * 3. prev가 NULL인 지점(리스트 헤드)에 도달하면 반환
+ * 
+ * @param e 리스트를 찾을 요소 (struct list_elem)
+ * @return 해당 요소가 속한 리스트의 포인터
+ */
+struct list *find_list(struct list_elem *e)
+{
+	struct list_elem * cur= e;
+	while(cur->prev){
+		cur = cur->prev;
+	}
+    return (struct list*)cur;
 }
