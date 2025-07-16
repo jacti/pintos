@@ -57,7 +57,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 bool thread_mlfqs;
 
 //$Add/MLFQ_thread_elem
-static fixed_t load_avg = 0; /** @brief 전역변수: 부하 평균량  */
+static fixed_t load_avg = 1; /** @brief 전역변수: 부하 평균량  */
 //Add/MLFQ_thread_elem
 
 static void kernel_thread (thread_func *, void *aux);
@@ -251,6 +251,8 @@ void
 thread_block (void) {
 	ASSERT (!intr_context ());
 	ASSERT (intr_get_level () == INTR_OFF);
+	
+
 	thread_current ()->status = THREAD_BLOCKED;
 	schedule ();
 }
@@ -428,7 +430,8 @@ thread_awake (void) {
  */
 void
 thread_set_priority (int new_priority) {
-	
+
+	 
 	if(thread_mlfqs == 0){//$test-temp/mlfqs
 	struct thread *cur = thread_current();
 	cur->priority = new_priority;
@@ -447,19 +450,22 @@ thread_set_priority (int new_priority) {
 			e = list_next(e);
 		}
 	}
-}
 	
 	thread_yield();
+	}
 }
 
 /**
- * @brief  * 기부자의 priority 값을 반환
+ * @brief 주어진 스레드의 유효 우선순위(effective priority)를 반환하는 함수
+ *
+ * 우선순위 기부(priority donation)를 고려하여 donr_list의 가장 마지막(=가장 높은 우선순위라고 가정된)
+ * 기부자의 priority 값을 반환
  * 단, `donor_list`는 **우선순위 오름차순**으로 정렬되야함
  * `list_back()`이 가장 높은 우선순위의 기부자를 가리키는 구조임을 전제
- * 
- * @param t 우선순위를 확인할 대상 스레드
- * @return 기부를 고려한 현재 유효 우선순위 값*/
 
+ * @param t 우선순위를 확인할 대상 스레드
+ * @return 기부를 고려한 현재 유효 우선순위 값
+ */
 int get_effective_priority(struct thread *t) {
 	struct thread *donor_thread = list_entry(list_back(&t->donor_list), struct thread, donor_elem);
     return donor_thread->priority;
@@ -494,6 +500,7 @@ thread_set_nice (int nice UNUSED) {
 int
 thread_get_nice (void) {
 	/* TODO: Your implementation goes here */
+	
 	return thread_current()->nice*100;
 }
 
@@ -503,15 +510,13 @@ int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
 	return CFTOI(MUXFI_INT32(load_avg,100));
-	
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
-	CFTOI(MUXFI_INT32(thread_current()->recent_cpu,100));
-	return 0;
+	return CFTOI(MUXFI_INT32(thread_current()->recent_cpu,100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -756,15 +761,13 @@ static tid_t
 allocate_tid (void) {
 	static tid_t next_tid = 1;
 	tid_t tid;
-
+	
 	lock_acquire (&tid_lock);
 	tid = next_tid++;
 	lock_release (&tid_lock);
 
 	return tid;
 }
-
-
 //$test-temp/mlfqs
 /**
  * @brief 시스템의 load_avg 값을 갱신합니다.
@@ -833,13 +836,10 @@ static int get_count_threads(void) {
 	return thread_current() != idle_thread ? count++ : count ;
 }
 
-/** 
- * @brief 1초마다 부하평균, 쓰레드-recent_cpu 업데이트 모아둔 함수
- */
 void mlfq_run_for_sec(void){
 	load_avg_update();
 	threads_recent_update();
-	printf("load_avg %d threads-count %d : per seconds\n", thread_get_load_avg(),get_count_threads());
+	msg("load_avg %d threads-count %d : per seconds\n", thread_get_load_avg(),get_count_threads());
 }
 
 //test-temp/mlfqs
