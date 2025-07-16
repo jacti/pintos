@@ -513,7 +513,7 @@ thread_get_nice (void) {
 int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
-	return CFTOI(MUXFI_F(load_avg,100));
+	return FTOI_N(MUXFI_F(load_avg,100));
 	
 }
 
@@ -521,7 +521,7 @@ thread_get_load_avg (void) {
 int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
-	return CFTOI(MUXFI_F(thread_current()->recent_cpu,100));
+	return FTOI_N(MUXFI_F(thread_current()->recent_cpu,100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -791,6 +791,7 @@ allocate_tid (void) {
  */
 static void load_avg_update(void) {
 	load_avg = DIVFI_F(ADDFF_F(MUXFI_F(load_avg, 59), CITOF(get_count_threads())), 60);
+	// load_avg = MUXFF_F(DIVFF_F(CITOF(59),CITOF(60)), load_avg) + MUXFI_F(DIVFF_F(CITOF(1),CITOF(60)), get_count_threads());
 }
 
 /**
@@ -817,16 +818,12 @@ static void threads_recent_update(void) {
 		t = list_entry(e, struct thread, elem);
 		t->recent_cpu = ADDFF_F(MUXFF_F(t->recent_cpu, decay), CITOF(t->nice));
 	}
-	
-	t = thread_current();
-	t->priority = calaculate_priority(t->recent_cpu, t->nice);
 
-	// for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e)) {
-	// 	t = list_entry(e, struct thread, elem);
-	// 	t->recent_cpu = ADDFF_F(MUXFF_F(decay, t->recent_cpu), CITOF(t->nice));
-	// 	t->priority = PRI_MAX - CFTOI(DIVFI_F(t->recent_cpu,4)) - t->nice*2;
-	// }
-	// list_sort(&sleep_list, thread_priority_less, NULL);
+	//sleep list 추가
+	for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e)) {
+		t = list_entry(e, struct thread, elem);
+		t->recent_cpu = ADDFF_F(MUXFF_F(t->recent_cpu, decay), CITOF(t->nice));
+	}
 }
 
 static int calaculate_priority(fixed_t recent_cpu, int nice) {

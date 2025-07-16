@@ -15,7 +15,7 @@ alarm-priority PASS
 mlfqs-block FAIL
 priority-fifo PASS
 priority-sema PASS
-mlfqs-recent-1 FAIL
+mlfqs-recent-1 PASS
 alarm-zero PASS
 mlfqs-load-60 PASS
 mlfqs-fair-2 PASS
