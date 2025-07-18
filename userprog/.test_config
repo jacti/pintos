@@ -1,0 +1,112 @@
+# .test_config
+# 포맷: 테스트이름: 실행인자 ('--' 포함) : 경로
+
+[User Program]
+args-none:               --filesys-size=10 -p tests/userprog/args-none:args-none -- -q  : tests/userprog
+args-single:             --filesys-size=10 -p tests/userprog/args-single:args-single -- -q  : tests/userprog
+args-multiple:           --filesys-size=10 -p tests/userprog/args-multiple:args-multiple -- -q  : tests/userprog
+args-many:               --filesys-size=10 -p tests/userprog/args-many:args-many -- -q  : tests/userprog
+args-dbl-space:          --filesys-size=10 -p tests/userprog/args-dbl-space:args-dbl-space -- -q  : tests/userprog
+halt:                    --filesys-size=10 -p tests/userprog/halt:halt -- -q  : tests/userprog
+exit:                    --filesys-size=10 -p tests/userprog/exit:exit -- -q  : tests/userprog
+create-normal:           --filesys-size=10 -p tests/userprog/create-normal:create-normal -- -q  : tests/userprog
+create-empty:            --filesys-size=10 -p tests/userprog/create-empty:create-empty -- -q  : tests/userprog
+create-null:             --filesys-size=10 -p tests/userprog/create-null:create-null -- -q  : tests/userprog
+create-bad-ptr:          --filesys-size=10 -p tests/userprog/create-bad-ptr:create-bad-ptr -- -q  : tests/userprog
+create-long:             --filesys-size=10 -p tests/userprog/create-long:create-long -- -q  : tests/userprog
+create-exists:           --filesys-size=10 -p tests/userprog/create-exists:create-exists -- -q  : tests/userprog
+create-bound:            --filesys-size=10 -p tests/userprog/create-bound:create-bound -- -q  : tests/userprog
+open-normal:             --filesys-size=10 -p tests/userprog/open-normal:open-normal -- -q  : tests/userprog
+open-missing:            --filesys-size=10 -p tests/userprog/open-missing:open-missing -- -q  : tests/userprog
+open-boundary:           --filesys-size=10 -p tests/userprog/open-boundary:open-boundary -- -q  : tests/userprog
+open-empty:              --filesys-size=10 -p tests/userprog/open-empty:open-empty -- -q  : tests/userprog
+open-null:               --filesys-size=10 -p tests/userprog/open-null:open-null -- -q  : tests/userprog
+open-bad-ptr:            --filesys-size=10 -p tests/userprog/open-bad-ptr:open-bad-ptr -- -q  : tests/userprog
+open-twice:              --filesys-size=10 -p tests/userprog/open-twice:open-twice -- -q  : tests/userprog
+close-normal:            --filesys-size=10 -p tests/userprog/close-normal:close-normal -- -q  : tests/userprog
+close-twice:             --filesys-size=10 -p tests/userprog/close-twice:close-twice -- -q  : tests/userprog
+close-bad-fd:            --filesys-size=10 -p tests/userprog/close-bad-fd:close-bad-fd -- -q  : tests/userprog
+read-normal:             --filesys-size=10 -p tests/userprog/read-normal:read-normal -- -q  : tests/userprog
+read-bad-ptr:            --filesys-size=10 -p tests/userprog/read-bad-ptr:read-bad-ptr -- -q  : tests/userprog
+read-boundary:           --filesys-size=10 -p tests/userprog/read-boundary:read-boundary -- -q  : tests/userprog
+read-zero:               --filesys-size=10 -p tests/userprog/read-zero:read-zero -- -q  : tests/userprog
+read-stdout:             --filesys-size=10 -p tests/userprog/read-stdout:read-stdout -- -q  : tests/userprog
+read-bad-fd:             --filesys-size=10 -p tests/userprog/read-bad-fd:read-bad-fd -- -q  : tests/userprog
+write-normal:            --filesys-size=10 -p tests/userprog/write-normal:write-normal -- -q  : tests/userprog
+write-bad-ptr:           --filesys-size=10 -p tests/userprog/write-bad-ptr:write-bad-ptr -- -q  : tests/userprog
+write-boundary:          --filesys-size=10 -p tests/userprog/write-boundary:write-boundary -- -q  : tests/userprog
+write-zero:              --filesys-size=10 -p tests/userprog/write-zero:write-zero -- -q  : tests/userprog
+write-stdin:             --filesys-size=10 -p tests/userprog/write-stdin:write-stdin -- -q  : tests/userprog
+write-bad-fd:            --filesys-size=10 -p tests/userprog/write-bad-fd:write-bad-fd -- -q  : tests/userprog
+fork-once:               --filesys-size=10 -p tests/userprog/fork-once:fork-once -- -q  : tests/userprog
+fork-multiple:           --filesys-size=10 -p tests/userprog/fork-multiple:fork-multiple -- -q  : tests/userprog
+fork-recursive:          --filesys-size=10 -p tests/userprog/fork-recursive:fork-recursive -- -q  : tests/userprog
+fork-read:               --filesys-size=10 -p tests/userprog/fork-read:fork-read -- -q  : tests/userprog
+fork-close:              --filesys-size=10 -p tests/userprog/fork-close:fork-close -- -q  : tests/userprog
+fork-boundary:           --filesys-size=10 -p tests/userprog/fork-boundary:fork-boundary -- -q  : tests/userprog
+exec-once:               --filesys-size=10 -p tests/userprog/exec-once:exec-once -- -q  : tests/userprog
+exec-arg:                --filesys-size=10 -p tests/userprog/exec-arg:exec-arg -- -q  : tests/userprog
+exec-boundary:           --filesys-size=10 -p tests/userprog/exec-boundary:exec-boundary -- -q  : tests/userprog
+exec-missing:            --filesys-size=10 -p tests/userprog/exec-missing:exec-missing -- -q  : tests/userprog
+exec-bad-ptr:            --filesys-size=10 -p tests/userprog/exec-bad-ptr:exec-bad-ptr -- -q  : tests/userprog
+exec-read:               --filesys-size=10 -p tests/userprog/exec-read:exec-read -- -q  : tests/userprog
+wait-simple:             --filesys-size=10 -p tests/userprog/wait-simple:wait-simple -- -q  : tests/userprog
+wait-twice:              --filesys-size=10 -p tests/userprog/wait-twice:wait-twice -- -q  : tests/userprog
+wait-killed:             --filesys-size=10 -p tests/userprog/wait-killed:wait-killed -- -q  : tests/userprog
+wait-bad-pid:            --filesys-size=10 -p tests/userprog/wait-bad-pid:wait-bad-pid -- -q  : tests/userprog
+multi-recurse:           --filesys-size=10 -p tests/userprog/multi-recurse:multi-recurse -- -q  : tests/userprog
+multi-child-fd:          --filesys-size=10 -p tests/userprog/multi-child-fd:multi-child-fd -- -q  : tests/userprog
+rox-simple:              --filesys-size=10 -p tests/userprog/rox-simple:rox-simple -- -q  : tests/userprog
+rox-child:               --filesys-size=10 -p tests/userprog/rox-child:rox-child -- -q  : tests/userprog
+rox-multichild:          --filesys-size=10 -p tests/userprog/rox-multichild:rox-multichild -- -q  : tests/userprog
+bad-read:                --filesys-size=10 -p tests/userprog/bad-read:bad-read -- -q  : tests/userprog
+bad-write:               --filesys-size=10 -p tests/userprog/bad-write:bad-write -- -q  : tests/userprog
+bad-read2:               --filesys-size=10 -p tests/userprog/bad-read2:bad-read2 -- -q  : tests/userprog
+bad-write2:              --filesys-size=10 -p tests/userprog/bad-write2:bad-write2 -- -q  : tests/userprog
+bad-jump:                --filesys-size=10 -p tests/userprog/bad-jump:bad-jump -- -q  : tests/userprog
+bad-jump2:               --filesys-size=10 -p tests/userprog/bad-jump2:bad-jump2 -- -q  : tests/userprog
+
+[Base]
+lg-create:               --filesys-size=10 -p tests/filesys/base/lg-create:lg-create -- -q  : tests/filesys/base
+lg-full:                 --filesys-size=10 -p tests/filesys/base/lg-full:lg-full -- -q  : tests/filesys/base
+lg-random:               --filesys-size=10 -p tests/filesys/base/lg-random:lg-random -- -q  : tests/filesys/base
+lg-seq-block:            --filesys-size=10 -p tests/filesys/base/lg-seq-block:lg-seq-block -- -q  : tests/filesys/base
+lg-seq-random:           --filesys-size=10 -p tests/filesys/base/lg-seq-random:lg-seq-random -- -q  : tests/filesys/base
+sm-create:               --filesys-size=10 -p tests/filesys/base/sm-create:sm-create -- -q  : tests/filesys/base
+sm-full:                 --filesys-size=10 -p tests/filesys/base/sm-full:sm-full -- -q  : tests/filesys/base
+sm-random:               --filesys-size=10 -p tests/filesys/base/sm-random:sm-random -- -q  : tests/filesys/base
+sm-seq-block:            --filesys-size=10 -p tests/filesys/base/sm-seq-block:sm-seq-block -- -q  : tests/filesys/base
+sm-seq-random:           --filesys-size=10 -p tests/filesys/base/sm-seq-random:sm-seq-random -- -q  : tests/filesys/base
+syn-remove:              --filesys-size=10 -p tests/filesys/base/syn-remove:syn-remove -- -q  : tests/filesys/base
+syn-write:               --filesys-size=10 -p tests/filesys/base/syn-write:syn-write -- -q  : tests/filesys/base
+
+[No VM]
+multi-oom:               --filesys-size=10 -p tests/userprog/no-vm/multi-oom:multi-oom -- -q  : tests/userprog/no-vm
+
+[Thread]
+alarm-single:            --filesys-size=10 -p tests/threads/alarm-single -a alarm-single -- -q  : tests/threads
+alarm-multiple:          --filesys-size=10 -p tests/threads/alarm-multiple -a alarm-multiple -- -q  : tests/threads
+alarm-simultaneous:      --filesys-size=10 -p tests/threads/alarm-simultaneous -a alarm-simultaneous -- -q  : tests/threads
+alarm-priority:          --filesys-size=10 -p tests/threads/alarm-priority -a alarm-priority -- -q  : tests/threads
+alarm-zero:              --filesys-size=10 -p tests/threads/alarm-zero -a alarm-zero -- -q  : tests/threads
+alarm-negative:          --filesys-size=10 -p tests/threads/alarm-negative -a alarm-negative -- -q  : tests/threads
+priority-change:         --filesys-size=10 -p tests/threads/priority-change -a priority-change -- -q  : tests/threads
+priority-donate-one:     --filesys-size=10 -p tests/threads/priority-donate-one -a priority-donate-one -- -q  : tests/threads
+priority-donate-multiple: --filesys-size=10 -p tests/threads/priority-donate-multiple -a priority-donate-multiple -- -q  : tests/threads
+priority-donate-multiple2:  --filesys-size=10 -p tests/threads/priority-donate-multiple2 -a priority-donate-multiple2 -- -q  : tests/threads
+priority-donate-nest:    --filesys-size=10 -p tests/threads/priority-donate-nest -a priority-donate-nest -- -q  : tests/threads
+priority-donate-sema:    --filesys-size=10 -p tests/threads/priority-donate-sema -a priority-donate-sema -- -q  : tests/threads
+priority-donate-lower:   --filesys-size=10 -p tests/threads/priority-donate-lower -a priority-donate-lower -- -q  : tests/threads
+priority-fifo:           --filesys-size=10 -p tests/threads/priority-fifo -a priority-fifo -- -q  : tests/threads
+priority-preempt:        --filesys-size=10 -p tests/threads/priority-preempt -a priority-preempt -- -q  : tests/threads
+priority-sema:           --filesys-size=10 -p tests/threads/priority-sema -a priority-sema -- -q  : tests/threads
+priority-condvar:        --filesys-size=10 -p tests/threads/priority-condvar -a priority-condvar -- -q  : tests/threads
+priority-donate-chain:   --filesys-size=10 -p tests/threads/priority-donate-chain -a priority-donate-chain -- -q  : tests/threads
+
+
+
+[Extra]
+dup2-complex:            --filesys-size=10 -p tests/userprog/dup2-complex:dup2-complex -- -q  : tests/userprog
+dup2-simple:             --filesys-size=10 -p tests/userprog/dup2-simple:dup2-simple -- -q  : tests/userprog
+
+# (마지막 공백을 남겨두세요)
