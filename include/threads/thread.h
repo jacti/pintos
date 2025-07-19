@@ -7,6 +7,16 @@
 
 #include "fixed_point.h"  // $Add/fixed_point_h
 #include "threads/interrupt.h"
+
+//$ADD/write_handler
+#ifdef USERPROG
+ /**    @iizxcv
+  *     @brief 쓰레드 구조체에 file-table 추가를 위해 헤더추가
+  *     @see https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c */
+#include "filesys/file.h" 
+#endif
+//ADD/write_handler
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -133,6 +143,15 @@ struct thread {
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint64_t *pml4; /* Page map level 4 */
+
+
+    /**
+     * @iizxcv
+     * @brief write 함수구현을 위해 putbuf사용을 위해 생성.
+     * @see https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
+     */
+    struct file* fdt[64]; //$Add/write_handler
+    
 #endif
 #ifdef VM
     /* Table for whole virtual memory owned by thread. */

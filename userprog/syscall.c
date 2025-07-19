@@ -11,7 +11,10 @@
 #include "userprog/gdt.h"
 
 void syscall_entry(void);
-void syscall_handler(struct intr_frame *);
+void syscall_handler(struct intr_frame*);
+static bool is_user_accesable(void* start, size_t size, bool write);
+static int64_t get_user(const uint8_t* uaddr);
+static bool put_user(uint8_t* udst, uint8_t byte);
 
 /* $feat/syscall_handler */
 static void halt_handler(void);
@@ -108,6 +111,92 @@ void syscall_handler(struct intr_frame *f) {
             thread_exit();
 	}
 }
+/* Reads a byte at user virtual address UADDR.
+ * UADDR must be below KERN_BASE.
+ * Returns the byte value if successful, -1 if a segfault
+ * occurred. */
+static int64_t get_user(const uint8_t* uaddr) {
+    int64_t result;
+    __asm __volatile(
+        "movabsq $done_get, %0\n"  // done_get 레이블의 주소를 result에 저장
+        "movzbq %1, %0\n"  // *uaddr에서 1바이트를 읽어 %0 (result)에 저장. 세그폴트 발생 시 이 부분
+                           // 건너뜀.
+        "done_get:\n"  // (페이지 폴트 핸들러가 result를 -1로 설정하고 여기에 점프하도록 수정되어야
+                       // 함)
+        : "=&a"(result)
+        : "m"(*uaddr));
+    return result;
+}
+
+/* Writes BYTE to user address UDST.
+ * UDST must be below KERN_BASE.
+ * Returns true if successful, false if a segfault occurred. */
+static bool put_user(uint8_t* udst, uint8_t byte) {
+    int64_t error_code;
+    __asm __volatile(
+        "movabsq $done_put, %0\n"  // done_put 레이블의 주소를 error_code에 저장
+        "movb %b2, %1\n"  // byte를 *udst에 쓴다. 세그폴트 발생 시 이 부분 건너뜀.
+        "done_put:\n"  // (페이지 폴트 핸들러가 error_code를 -1로 설정하고 여기에 점프하도록
+                       // 수정되어야 함)
+        : "=&a"(error_code), "=m"(*udst)
+        : "q"(byte));
+    return error_code != -1;
+}
+
+/**
+ * @brief 사용자 메모리 영역이 접근 가능한지 검사합니다.
+ *
+ * @branch ADD/write_handler
+ * @see
+ * https://www.notion.so/jactio/access_control-235c9595474e8083ba94d4bc3d1ce7e3?source=copy_link
+ * @param start 검사 시작 주소(포인터)
+ * @param size 검사할 바이트 크기
+ * @param write 쓰기 접근 권한도 확인할지 여부 (true일 경우 put_user로 쓰기 검증)
+ * @return 접근 가능하면 true, 그렇지 않으면 false
+ *
+ * start 주소부터 size 바이트 범위 내 각 페이지마다 get_user를 통해 읽기 접근을 확인하고,
+ * write가 true일 경우 put_user를 통해 쓰기 접근도 검증합니다.
+ * 또한, 검사 범위가 커널 영역(KERN_BASE)이상일 경우 즉시 false를 반환합니다.
+ * get_user 및 put_user는 페이지 폴트 발생 시 -1을 반환하도록 구현되어 있습니다.
+ */
+static bool is_user_accesable(void* start, size_t size, bool write) {
+    uintptr_t end = (uintptr_t)start + size, ptr = start;
+    size_t n = pg_diff(start, end);
+    uint8_t byte;
+
+    ASSERT((uintptr_t)start <= (uintptr_t)end);
+
+    if (!is_user_vaddr(end)) {
+        return false;
+    }
+
+    for (int i = 0; i < n + 1; i++) {
+        if ((byte = get_user((uint8_t*)ptr)) == (int64_t)-1) {
+            return false;
+        }
+        if (write) {
+            if (put_user(ptr, byte) == (int64_t)-1) {
+                return false;
+            }
+        }
+        ptr += PGSIZE;
+        if (ptr > end) {
+            ptr = end;
+        }
+    }
+    return true;
+}
+
+/**
+ * @iizxcv
+ * @brief fd-no로 현재 쓰레드에 매핑된 file-table에서 file 주소 가져오기
+ *
+ * @branch ADD/write_handler
+ * @see
+ * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
+ */
+static struct file* get_file_from_fd(fd) {
+    return thread_current()->fdt[fd];
 
 static
 void halt_handler(void) {
@@ -175,9 +264,44 @@ int read_handler(int fd, void *buffer, unsigned size) {
 }
 
 /* 파일 또는 STDOUT으로 쓰기 */
-static
-int write_handler(int fd, const void *buffer, unsigned size) {
-    return -1; // TODO: 유저 주소 검증 -> file_write 또는 putbuf
+/**
+ * @brief 사용자 파일 디스크립터에 버퍼 내용을 씁니다.
+ *
+ * @branch ADD/write_handler
+ *
+ * @iizxcv
+ * @jacti
+ * @param fd    파일 디스크립터 (0: stdin, 1: stdout, >1: 파일)
+ * @param buffer   쓰기할 데이터가 있는 사용자 버퍼의 시작 주소
+ * @param size  쓰기할 데이터 크기(바이트 단위)
+ * @return 작성한 바이트 수(size) 또는 접근 오류 시 -1
+ * @see
+ * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
+ *
+ * is_user_accesable을 통해 사용자 버퍼 접근을 검증한 후,
+ * fd가 stdin인 경우 경고 메시지를 출력합니다.
+ * fd가 stdout인 경우 putbuf를 이용해 화면에 출력하며,
+ * 그 외(fd > stdout)의 경우 파일 객체를 fd로부터 가져와 file_write를 호출합니다.
+ */
+static int write_handler(int fd, void* buffer,
+                         unsigned size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
+
+    if (is_user_accesable(buf, size, false)) {
+        if (fd == 0) {
+            printf("you do wrting stdin. haven't writed at the stdin");
+        } else if (fd == 1) {
+            putbuf(buffer, size);
+        } else if (fd > 2) {
+            // FIXME: 락이랑 접근해서 작성하는거 구현할 것
+            // 수정필요 acquire_console();
+            struct file* get_file = get_file_from_fd(fd);
+            file_write(get_file, buf, size);
+            // 수정필요  release_console();
+        }
+        return size;
+    }
+
+    return -1;
 }
 
 /* 파일 커서 위치 이동 */
