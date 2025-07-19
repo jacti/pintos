@@ -56,4 +56,8 @@
         ((uint64_t)(vaddr) - (uint64_t)KERN_BASE); \
     })
 
+#define abs(a) ((a) < 0 ? (-1 * (a)) : (a))
+
+#define pg_diff(a, b) (abs(pg_no((a)) - pg_no((b))))
+
 #endif /* threads/vaddr.h */
