@@ -73,11 +73,11 @@ static int write_handler(size_t fd, char* buf, int size) {  // write의 목적�
    
     if (is_user_vaddr(buf)) {
         if (fd == stdin) {
-            printf("you do wrting stdin. haven't writed at the stdin"); //fd값이 stdin 이면 경고문 출력과 함께, 종료
+            printf("you do wrting stdin. haven't writed at the stdin"); 
         } else if (fd == stdout) {
-            putbuf(buf, size);
+            putbuf(buf, size);                                          
         } else if (fd > stdout) {
-            acquire_console();
+            acquire_console();                                          
             struct file* get_file = get_file_from_fd(fd);
             file_write(get_file, buf, size);
             release_console();
