@@ -71,19 +71,24 @@ void syscall_handler(struct intr_frame* f) {
 */
 static int write_handler(size_t fd, char* buf, int size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
    
-    if (is_user_vaddr(buf)) {
+    if (is_user_vaddr(buf+size)) {
+        //buf 에서 size 만큼 실제 할당되었는지 유무체크 - 나중에 구현
+        //user_get~~~~으로 page접근  시도 ? page 있으면 정상 실행 : 없으면 -1 return
         if (fd == stdin) {
             printf("you do wrting stdin. haven't writed at the stdin"); 
         } else if (fd == stdout) {
             putbuf(buf, size);                                          
         } else if (fd > stdout) {
-            acquire_console();                                          
+           // 수정필요 acquire_console();                                          
             struct file* get_file = get_file_from_fd(fd);
             file_write(get_file, buf, size);
-            release_console();
+           //수정필요  release_console();
         }
         return size;
     }
+
+    return -1;
+
 }
 /**
  * @iizxcv
