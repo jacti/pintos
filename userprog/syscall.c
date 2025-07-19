@@ -63,11 +63,17 @@ void syscall_handler(struct intr_frame* f) {
 }
 
 //$ADD/write_handler
-static  write_handler(size_t fd, char* buf, int size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
+/**
+ * @iizxcv
+ * @brief 쓰기 함수 구현. fd를 받아와서 buf에 있는 값을 size 만큼 쓰는 함수임.
+ * @see https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
+
+*/
+static int write_handler(size_t fd, char* buf, int size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
    
     if (is_user_vaddr(buf)) {
         if (fd == stdin) {
-            printf("you do wrting stdin. haven't writed at the stdin");
+            printf("you do wrting stdin. haven't writed at the stdin"); //fd값이 stdin 이면 경고문 출력과 함께, 종료
         } else if (fd == stdout) {
             putbuf(buf, size);
         } else if (fd > stdout) {
@@ -76,8 +82,14 @@ static  write_handler(size_t fd, char* buf, int size) {  // write의 목적은 b
             file_write(get_file, buf, size);
             release_console();
         }
+        return size;
     }
 }
+/**
+ * @iizxcv
+ * @brief fd-no로 현재 쓰레드에 매핑된 file-table에서 file 주소 가져오기
+ * @see https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
+*/
 static struct file* get_file_from_fd(fd) {
     return thread_current()->fdt[fd];
 }
