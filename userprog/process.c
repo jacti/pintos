@@ -25,9 +25,11 @@
 #endif
 
 static void process_cleanup(void);
-static bool load(const char *file_name, struct intr_frame *if_);
+static bool load(const char *file_name, const char *args, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
+static uint64_t *push_stack(void *arg, size_t size, struct intr_frame *if_);
+static uint64_t *pop_stack(size_t size, struct intr_frame *if_);
 
 /* General process initializer for initd and other process. */
 static void process_init(void) {
@@ -156,7 +158,10 @@ error:
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
 int process_exec(void *f_name) {
-    char *file_name = f_name;
+    //  $feat/arg-parse
+    char *args;
+    char *file_name = strtok_r(f_name, " ", &args);
+    //  feat/arg-parse
     bool success;
 
     /* We cannot use the intr_frame in the thread structure.
@@ -171,7 +176,7 @@ int process_exec(void *f_name) {
     process_cleanup();
 
     /* And then load the binary */
-    success = load(file_name, &_if);
+    success = load(file_name, args, &_if);
 
     /* If load failed, quit. */
     palloc_free_page(file_name);
@@ -308,7 +313,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
  * Stores the executable's entry point into *RIP
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
-static bool load(const char *file_name, struct intr_frame *if_) {
+static bool load(const char *file_name, const char *args, struct intr_frame *if_) {
     struct thread *t = thread_current();
     struct ELF ehdr;
     struct file *file = NULL;
@@ -396,8 +401,34 @@ static bool load(const char *file_name, struct intr_frame *if_) {
     /* Start address. */
     if_->rip = ehdr.e_entry;
 
-    /* TODO: Your code goes here.
-     * TODO: Implement argument passing (see project2/argument_passing.html). */
+    //  $feat/arg-parse
+    char *argv[LOADER_ARGS_LEN / 2];
+    uintptr_t stack_ptr[LOADER_ARGS_LEN / 2];
+    argv[0] = file_name;
+    uint8_t argc = 1;
+    char *save_ptr;
+    argv[argc] = strtok_r(args, ' ', &save_ptr);
+    while (argv[argc] != NULL) {
+        argv[++argc] = strtok_r(NULL, ' ', &save_ptr);
+    }
+
+    size_t total_mod8 = 0;
+    size_t arg_len;
+    for (int i = argc - 1; i >= 0; i--) {
+        arg_len = strlen(argv[i]) + 1;
+        stack_ptr[i] = push_stack(argv[i], arg_len, if_);
+        total_mod8 = (total_mod8 + arg_len) % 8;
+    }
+
+    push_stack(NULL, (8 - total_mod8) % 8, if_);
+
+    push_stack(NULL, sizeof(uintptr_t), if_);
+    for (int i = argc - 1; i >= 0; i--) {
+        push_stack((char *)stack_ptr[i], sizeof(uintptr_t), if_);
+    }
+    if_->R.rsi = sizeof(uintptr_t) + push_stack(NULL, sizeof(uintptr_t), if_);
+    if_->R.rdi = argc;
+    //  feat/arg-parse
 
     success = true;
 
@@ -546,6 +577,89 @@ static bool install_page(void *upage, void *kpage, bool writable) {
     return (pml4_get_page(t->pml4, upage) == NULL &&
             pml4_set_page(t->pml4, upage, kpage, writable));
 }
+
+/**
+ * @brief 사용자 스택에 데이터를 푸시(push)합니다.
+ *
+ * @branch feat/arg-parse
+ * @see https://www.notion.so/jactio/arg-parsing-235c9595474e8034af80c8ca37af7dd2?source=copy_link
+ * @param arg 푸시할 데이터가 저장된 버퍼의 포인터입니다.
+ * @param size 푸시할 바이트 수이며, 0보다 커야 합니다.
+ * @param if_ 스택 포인터(rsp)를 조정할 intr_frame 구조체의 포인터입니다.
+ * @return 성공 시 갱신된 스택 포인터(rsp)를 반환하고, 할당 실패 시 NULL을 반환합니다.
+ *
+ * 이 함수는 if_->rsp를 size만큼 감소시킨 후, 새로 필요해진 페이지가
+ * 사용자 영역에 매핑되어 있지 않으면 페이지를 할당하고 매핑합니다.
+ * 이후 arg가 가리키는 버퍼에서 size 바이트를 스택으로 복사합니다.
+ * 페이지 할당이나 매핑에 실패하면 이미 할당된 페이지를 모두 해제하고
+ * rsp를 원래 값으로 복원한 후 NULL을 반환합니다.
+ */
+static uint64_t *push_stack(void *arg, size_t size, struct intr_frame *if_) {
+    ASSERT(size > 0);
+    bool alloc_fail = false;
+    uintptr_t old_rsp = if_->rsp;
+    if_->rsp = old_rsp - size;
+
+    size_t n = ((uintptr_t)pg_round_down(old_rsp) - (uintptr_t)pg_round_down(if_->rsp)) >> PGBITS;
+
+    uintptr_t page_bottom = pg_round_down(old_rsp);
+    for (int i = 0; i < n; i++) {
+        page_bottom -= PGSIZE;
+        uint8_t *kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+        if (kpage != NULL) {
+            if (!install_page(page_bottom, kpage, true)) {
+                palloc_free_page(kpage);
+                page_bottom += PGSIZE;
+                alloc_fail = true;
+                break;
+            }
+        }
+    }
+
+    if (alloc_fail) {
+        for (; page_bottom < pg_round_down(old_rsp); page_bottom += PGSIZE) {
+            palloc_free_page(page_bottom);
+        }
+        if_->rsp = old_rsp;
+        return NULL;
+    }
+
+    for (char *cur = if_->rsp; cur < old_rsp; cur++) {
+        *cur = *((char *)arg);
+        arg++;
+    }
+    return if_->rsp;
+}
+
+/**
+ * @brief 사용자 스택에서 데이터를 팝(pop)합니다.
+ *
+ * @branch feat/arg-parse
+ * @see https://www.notion.so/jactio/arg-parsing-235c9595474e8034af80c8ca37af7dd2?source=copy_link
+ * @param size 팝할 바이트 수이며, 0보다 커야 합니다.
+ * @param if_ 스택 포인터(rsp)를 조정할 intr_frame 구조체의 포인터입니다.
+ * @return 갱신된 스택 포인터(rsp)를 반환합니다.
+ *
+ * 이 함수는 if_->rsp를 size만큼 증가시킨 후, 더 이상 필요하지
+ * 않은 페이지(스택 확장 시 할당된 페이지)를 해제합니다.
+ */
+static uint64_t *pop_stack(size_t size, struct intr_frame *if_) {
+    ASSERT(size > 0);
+    ASSERT(if_->rsp + size <= USER_STACK);
+
+    uintptr_t page_bottom = pg_round_down(if_->rsp);
+    if_->rsp += size;
+
+    size_t n = ((uintptr_t)pg_round_down(if_->rsp) - page_bottom) >> PGBITS;
+
+    for (int i = 0; i < n; i++) {
+        palloc_free_page(page_bottom);
+        page_bottom += PGSIZE;
+    }
+
+    return if_->rsp;
+}
+
 #else
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
