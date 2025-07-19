@@ -11,7 +11,7 @@
 #include "userprog/gdt.h"
 
 void syscall_entry(void);
-void syscall_handler(struct intr_frame *);
+void syscall_handler(struct intr_frame*);
 
 /* System call.
  *
@@ -37,8 +37,48 @@ void syscall_init(void) {
 }
 
 /* The main system call interface */
-void syscall_handler(struct intr_frame *f UNUSED) {
-    // TODO: Your implementation goes here.
-    printf("system call!\n");
-    thread_exit();
+
+void syscall_handler(struct intr_frame* f) {
+    // // TODO: Your implementation goes here.
+    //  enum intr_level old_level = intr_disable();
+    // int syscall_num = f->R.rax;
+
+    // switch (syscall_num) {
+    //     case SYS_WRITE:
+    //         /* code */
+    //         write_handler(f->R.rdi, f->R.rsi, f->R.rdx);
+
+    //         intr_set_level(old_level);
+    //         break;
+
+    //     default:
+    //         //printf("system call!\n");
+    //         printf("\n  undifind syscall : %d \n", syscall_num);
+    //         thread_exit();
+
+    //         intr_set_level(old_level);
+    //         break;
+    // }
+    
 }
+
+//$ADD/write_handler
+static  write_handler(size_t fd, char* buf, int size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
+   
+    if (is_user_vaddr(buf)) {
+        if (fd == stdin) {
+            printf("you do wrting stdin. haven't writed at the stdin");
+        } else if (fd == stdout) {
+            putbuf(buf, size);
+        } else if (fd > stdout) {
+            acquire_console();
+            struct file* get_file = get_file_from_fd(fd);
+            file_write(get_file, buf, size);
+            release_console();
+        }
+    }
+}
+static struct file* get_file_from_fd(fd) {
+    return thread_current()->fdt[fd];
+}
+//ADD/write_handler

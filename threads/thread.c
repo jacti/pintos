@@ -557,6 +557,16 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     if (thread_mlfqs) {
         t->priority = calaculate_priority(t->recent_cpu, t->nice);
     }
+    //$ADD/write_handler
+    /** 
+     * @brief fd 0,1 은 표준 입출력을 써야하기에 나중에 NULL이면 리턴하는 식으로 하기 위해 정의
+     */
+    #ifdef USERPROG
+        t->fdt[0] = NULL;
+        t->fdt[1] = NULL;
+    #endif
+    //ADD/write_handler
+
 
     t->magic = THREAD_MAGIC;
 

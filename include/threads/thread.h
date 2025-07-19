@@ -7,6 +7,13 @@
 
 #include "fixed_point.h"  // $Add/fixed_point_h
 #include "threads/interrupt.h"
+
+//$ADD/write_handler
+#ifdef USERPROG
+#include "filesys/file.h"
+#endif
+//ADD/write_handler
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -133,6 +140,13 @@ struct thread {
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint64_t *pml4; /* Page map level 4 */
+
+
+    /**
+     * @brief write 함수구현을 위해 putbuf사용을 위해 생성.
+     */
+    struct file* fdt[64]; //$Add/write_handler
+    
 #endif
 #ifdef VM
     /* Table for whole virtual memory owned by thread. */
