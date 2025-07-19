@@ -119,8 +119,8 @@ static
 void exit_handler(int status) {
     // 현재 쓰레드 종료 + exit status 저장
     struct thread *cur = thread_current();
-    cur->status = status;
-    printf("%s: exit(%d)\n", cur->name, status);
+    // cur->status = status;
+    // printf("%s: exit(%d)\n", cur->name, status);
     thread_exit();
 }
 
