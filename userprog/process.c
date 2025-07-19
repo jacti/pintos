@@ -28,6 +28,8 @@ static void process_cleanup(void);
 static bool load(const char *file_name, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
+static uint64_t *push_stack(void *arg, size_t size, struct intr_frame *if_);
+static uint64_t *pop_stack(size_t size, struct intr_frame *if_);
 
 /* General process initializer for initd and other process. */
 static void process_init(void) {
@@ -308,13 +310,15 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
  * Stores the executable's entry point into *RIP
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
-static bool load(const char *file_name, struct intr_frame *if_) {
+static bool load(const char *command_line, struct intr_frame *if_) {
     struct thread *t = thread_current();
     struct ELF ehdr;
     struct file *file = NULL;
     off_t file_ofs;
     bool success = false;
     int i;
+
+    char *file_name = str;  //  $Tsudo/argpass
 
     /* Allocate and activate page directory. */
     t->pml4 = pml4_create();
@@ -398,6 +402,9 @@ static bool load(const char *file_name, struct intr_frame *if_) {
 
     /* TODO: Your code goes here.
      * TODO: Implement argument passing (see project2/argument_passing.html). */
+    /*
+
+    */
 
     success = true;
 
@@ -546,6 +553,53 @@ static bool install_page(void *upage, void *kpage, bool writable) {
     return (pml4_get_page(t->pml4, upage) == NULL &&
             pml4_set_page(t->pml4, upage, kpage, writable));
 }
+
+static uint64_t *push_stack(void *arg, size_t size, struct intr_frame *if_) {
+    /*
+    alloc_fail = false;
+    old_rsp = if_->rsp;
+    rsp에서 size만큼 뺐을 때 새 페이지가 생겨야 하는지 확인
+        page_bottom = (pg_round_down(rsp)
+        n = page_bottom - pg_round_down(new_rsp) =>  한 후 >> PGBITS)
+
+    필요한 만큼 페이지 할당
+        for(int i = 1; i <= n ; i ++){
+            kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+            if (kpage != NULL) {
+                if(!install_page(page_bottom - i*PGSIZE, kpage, true)){
+                    palloc_free_page(kpage);
+                    alloc_fail = true;
+                }
+            }
+        }
+
+        if(alloc_fail){
+            old_rsp 까지 이전에 할당받았던 유저 페이지 모두 해제
+            오류? 출력
+            return NULL;
+        }
+
+
+    if_->rsp -= size;
+
+    arg에서 size만큼 stack에 푸시
+    for(char* cur = if_->rsp; cur < old_rsp; cur ++){
+        cur = arg++;
+    }
+    return if_->rsp;
+    */
+}
+
+static uint64_t *pop_stack(size_t size, struct intr_frame *if_) {
+    /*
+        size를 더했을 때 USER_STACK 보다 높아지면 NULL 반환
+
+        rsp에서 size만큼 더했을 때 페이지가 바뀌면 free 해주기
+
+        rsp +size 리턴
+    */
+}
+
 #else
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
