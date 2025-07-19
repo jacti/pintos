@@ -163,11 +163,11 @@ static int write_handler(size_t fd, char* buf,
                          int size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
 
     if (is_user_accesable(buf, size, false)) {
-        if (fd == stdin) {
+        if (fd == 0) {
             printf("you do wrting stdin. haven't writed at the stdin");
-        } else if (fd == stdout) {
+        } else if (fd == 1) {
             putbuf(buf, size);
-        } else if (fd > stdout) {
+        } else if (fd > 2) {
             // FIXME: 락이랑 접근해서 작성하는거 구현할 것
             // 수정필요 acquire_console();
             struct file* get_file = get_file_from_fd(fd);
