@@ -26,7 +26,7 @@
 #endif
 
 static void process_cleanup(void);
-static bool load(const char *file_name, const char *args, struct intr_frame *if_);
+static bool load(const char *file_name, char *args, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
 static uint64_t *push_stack(char *arg, size_t size, struct intr_frame *if_);
@@ -165,7 +165,7 @@ int process_exec(void *f_name) {
     //  feat/arg-parse
     bool success;
 
-    /* We cannot use the intr_frame in the thread structure.
+    /* We cannot use the intr_frame in t3e thread structure.
      * This is because when current thread rescheduled,
      * it stores the execution information to the member. */
     struct intr_frame _if;
@@ -317,14 +317,13 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
  * Stores the executable's entry point into *RIP
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
-static bool load(const char *file_name, const char *args, struct intr_frame *if_) {
+static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     struct thread *t = thread_current();
     struct ELF ehdr;
     struct file *file = NULL;
     off_t file_ofs;
     bool success = false;
     int i;
-    char *args_ = args;
 
     /* Allocate and activate page directory. */
     t->pml4 = pml4_create();
@@ -412,11 +411,9 @@ static bool load(const char *file_name, const char *args, struct intr_frame *if_
     argv[0] = file_name;
     uint8_t argc = 1;
     char *save_ptr;
-    if (*args_ != '\0') {
-        argv[argc] = strtok_r(args_, ' ', &save_ptr);
-        while (argv[argc] != NULL) {
-            argv[++argc] = strtok_r(NULL, ' ', &save_ptr);
-        }
+    argv[argc] = strtok_r(args, " ", &save_ptr);
+    while (argv[argc] != NULL) {
+        argv[++argc] = strtok_r(NULL, " ", &save_ptr);
     }
 
     size_t total_mod8 = 0;
