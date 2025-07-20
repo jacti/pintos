@@ -14,7 +14,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #ifdef USERPROG
-#include "../include/threads/thread.h"
+// #include "../include/threads/thread.h"
 #include "userprog/process.h"
 #endif
 
@@ -216,7 +216,7 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
     /* Add to run queue. */
     thread_unblock(t);
 
-    thread_yield();  // 스레드가 생성될 때, 생성된 스레드의 우선 순위가 높을 때 양보
+    thread_yield_r();  // 스레드가 생성될 때, 생성된 스레드의 우선 순위가 높을 때 양보
 
     return tid;
 }
@@ -326,6 +326,28 @@ void thread_yield(void) {
         list_insert_ordered(&ready_list, &curr->elem, thread_priority_less, NULL);
     do_schedule(THREAD_READY);
     intr_set_level(old_level);
+}
+
+/**
+ * @brief 스레드 생성 또는 언블록 후, 우선순위가 더 높은 스레드가 있으면 CPU를 양보함
+ *
+ * thread_unblock() 호출 이후, 현재 스레드의 효과적 우선순위가
+ * 준비 큐(peek된 스레드)의 우선순위보다 낮으면 즉시
+ * 컨텍스트 스위치를 트리거하여 높은 우선순위 스레드에게 CPU를 양보합니다.
+ *
+ * @branch fix/kernel-panic-userprog
+ * @see    https://www.notion.so/jactio/userprog-235c9595474e80569688e4832de8291f?source=copy_link
+ */
+void thread_yield_r(void) {
+    if (!list_empty(&ready_list) &&
+        get_effective_priority(thread_current()) <
+            get_effective_priority(list_entry(list_front(&ready_list), struct thread, elem))) {
+        if (intr_context()) {
+            intr_yield_on_return();
+        } else {
+            thread_yield();
+        }
+    }
 }
 
 /**
@@ -557,17 +579,16 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     if (thread_mlfqs) {
         t->priority = calaculate_priority(t->recent_cpu, t->nice);
     }
-    //$ADD/write_handler
-    /** 
-     * @brief fd 0,1 은 표준 입출력을 써야하기에 나중에 NULL이면 리턴하는 식으로 하기 위해 정의
-     */
-    #ifdef USERPROG
-    //ㄹfor 문으로 매크로 수만큼 null초기화
-        t->fdt[0] = NULL;
-        t->fdt[1] = NULL;
-    #endif
-    //ADD/write_handler
-
+//$ADD/write_handler
+/**
+ * @brief fd 0,1 은 표준 입출력을 써야하기에 나중에 NULL이면 리턴하는 식으로 하기 위해 정의
+ */
+#ifdef USERPROG
+    // for 문으로 매크로 수만큼 null초기화
+    t->fdt[0] = NULL;
+    t->fdt[1] = NULL;
+#endif
+    // ADD/write_handler
 
     t->magic = THREAD_MAGIC;
 
@@ -839,5 +860,4 @@ void priority_update(void) {
     list_sort(&ready_list, thread_priority_less, NULL);
     intr_yield_on_return();
 }
-
 // test-temp/mlfqs
