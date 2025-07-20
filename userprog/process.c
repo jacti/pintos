@@ -16,6 +16,7 @@
 #include "threads/interrupt.h"
 #include "threads/mmu.h"
 #include "threads/palloc.h"
+#include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/gdt.h"
@@ -28,7 +29,7 @@ static void process_cleanup(void);
 static bool load(const char *file_name, const char *args, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
-static uint64_t *push_stack(void *arg, size_t size, struct intr_frame *if_);
+static uint64_t *push_stack(char *arg, size_t size, struct intr_frame *if_);
 static uint64_t *pop_stack(size_t size, struct intr_frame *if_);
 
 /* General process initializer for initd and other process. */
@@ -201,6 +202,9 @@ int process_wait(tid_t child_tid UNUSED) {
     /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
      * XXX:       to add infinite loop here before
      * XXX:       implementing the process_wait. */
+    // for (;;) {
+    //     barrier();
+    // }
     return -1;
 }
 
@@ -407,9 +411,11 @@ static bool load(const char *file_name, const char *args, struct intr_frame *if_
     argv[0] = file_name;
     uint8_t argc = 1;
     char *save_ptr;
-    argv[argc] = strtok_r(args, ' ', &save_ptr);
-    while (argv[argc] != NULL) {
-        argv[++argc] = strtok_r(NULL, ' ', &save_ptr);
+    if (*args != '\0') {
+        argv[argc] = strtok_r(args, ' ', &save_ptr);
+        while (argv[argc] != NULL) {
+            argv[++argc] = strtok_r(NULL, ' ', &save_ptr);
+        }
     }
 
     size_t total_mod8 = 0;
@@ -424,9 +430,10 @@ static bool load(const char *file_name, const char *args, struct intr_frame *if_
 
     push_stack(NULL, sizeof(uintptr_t), if_);
     for (int i = argc - 1; i >= 0; i--) {
-        push_stack((char *)stack_ptr[i], sizeof(uintptr_t), if_);
+        push_stack((char *)(&stack_ptr[i]), sizeof(uintptr_t), if_);
     }
-    if_->R.rsi = sizeof(uintptr_t) + push_stack(NULL, sizeof(uintptr_t), if_);
+    push_stack(NULL, sizeof(uintptr_t), if_);
+    if_->R.rsi = sizeof(uintptr_t) + if_->rsp;
     if_->R.rdi = argc;
     //  feat/arg-parse
 
@@ -594,13 +601,17 @@ static bool install_page(void *upage, void *kpage, bool writable) {
  * 페이지 할당이나 매핑에 실패하면 이미 할당된 페이지를 모두 해제하고
  * rsp를 원래 값으로 복원한 후 NULL을 반환합니다.
  */
-static uint64_t *push_stack(void *arg, size_t size, struct intr_frame *if_) {
+static uint64_t *push_stack(char *arg, size_t size, struct intr_frame *if_) {
     ASSERT(size > 0);
     bool alloc_fail = false;
     uintptr_t old_rsp = if_->rsp;
     if_->rsp = old_rsp - size;
 
-    size_t n = ((uintptr_t)pg_round_down(old_rsp) - (uintptr_t)pg_round_down(if_->rsp)) >> PGBITS;
+    size_t n = pg_diff(old_rsp, if_->rsp);
+
+    if (old_rsp == USER_STACK) {
+        n -= 1;
+    }
 
     uintptr_t page_bottom = pg_round_down(old_rsp);
     for (int i = 0; i < n; i++) {
@@ -625,8 +636,12 @@ static uint64_t *push_stack(void *arg, size_t size, struct intr_frame *if_) {
     }
 
     for (char *cur = if_->rsp; cur < old_rsp; cur++) {
-        *cur = *((char *)arg);
-        arg++;
+        if (arg) {
+            *cur = *((char *)arg);
+            arg++;
+        } else {
+            *cur = '\0';
+        }
     }
     return if_->rsp;
 }
@@ -651,6 +666,10 @@ static uint64_t *pop_stack(size_t size, struct intr_frame *if_) {
     if_->rsp += size;
 
     size_t n = ((uintptr_t)pg_round_down(if_->rsp) - page_bottom) >> PGBITS;
+
+    if (if_->rsp == USER_STACK) {
+        n -= 1;
+    }
 
     for (int i = 0; i < n; i++) {
         palloc_free_page(page_bottom);

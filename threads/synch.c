@@ -107,12 +107,15 @@ void sema_up(struct semaphore *sema) {
     ASSERT(sema != NULL);
 
     old_level = intr_disable();
-    if (!list_empty(&sema->waiters))
-        thread_unblock(list_entry(list_pop_front(&sema->waiters), struct thread, elem));
+    if (!list_empty(&sema->waiters)) {
+        struct list_elem *max_elem = list_max(&sema->waiters, thread_priority_less, NULL);
+        list_remove(max_elem);
+        thread_unblock(list_entry(max_elem, struct thread, elem));
+    }
+
     sema->value++;
 
-    thread_yield();  // 높은 우선순위 스레드가 대기 상태에서 깨어날 때, 즉시 CPU를 점유할 수 있도록
-                     // 보장
+    thread_yield_r();
     intr_set_level(old_level);
 }
 
