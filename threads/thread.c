@@ -78,6 +78,12 @@ static size_t get_count_threads(void);
 static void load_avg_update(void);
 // test-temp/mlfqs-iizxcv
 
+//$feat/process-wait
+inline bool is_user_thread(void) {
+    return (thread_current()->pml4 != NULL);
+}
+// feat/process-wait
+
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -584,9 +590,19 @@ static void init_thread(struct thread *t, const char *name, int priority) {
  * @brief fd 0,1 은 표준 입출력을 써야하기에 나중에 NULL이면 리턴하는 식으로 하기 위해 정의
  */
 #ifdef USERPROG
-    // for 문으로 매크로 수만큼 null초기화
+    // FIXME : fdt를 for 문으로 매크로 수만큼 null초기화 현재는 64개 크기 중 2개만 초기화
     t->fdt[0] = NULL;
     t->fdt[1] = NULL;
+
+    //$feat/process-wait
+    t->parent = NULL;
+    list_init(&t->childs);
+    t->sibling_elem.prev = NULL;
+    t->sibling_elem.next = NULL;
+    sema_init(&t->wait_sema, 0);
+    t->exit_status = 1;
+    // feat/process-wait
+
 #endif
     // ADD/write_handler
 
