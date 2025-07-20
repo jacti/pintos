@@ -328,6 +328,16 @@ void thread_yield(void) {
     intr_set_level(old_level);
 }
 
+/**
+ * @brief 스레드 생성 또는 언블록 후, 우선순위가 더 높은 스레드가 있으면 CPU를 양보함
+ *
+ * thread_unblock() 호출 이후, 현재 스레드의 효과적 우선순위가
+ * 준비 큐(peek된 스레드)의 우선순위보다 낮으면 즉시
+ * 컨텍스트 스위치를 트리거하여 높은 우선순위 스레드에게 CPU를 양보합니다.
+ *
+ * @branch fix/kernel-panic-userprog
+ * @see    https://www.notion.so/jactio/userprog-235c9595474e80569688e4832de8291f?source=copy_link
+ */
 void thread_yield_r(void) {
     if (!list_empty(&ready_list) &&
         get_effective_priority(thread_current()) <

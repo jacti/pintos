@@ -590,7 +590,7 @@ static bool install_page(void *upage, void *kpage, bool writable) {
  *
  * @branch feat/arg-parse
  * @see https://www.notion.so/jactio/arg-parsing-235c9595474e8034af80c8ca37af7dd2?source=copy_link
- * @param arg 푸시할 데이터가 저장된 버퍼의 포인터입니다.
+ * @param arg 푸시할 데이터가 저장된 버퍼의 포인터입니다. NULL이면 0 값으로 채웁니다.
  * @param size 푸시할 바이트 수이며, 0보다 커야 합니다.
  * @param if_ 스택 포인터(rsp)를 조정할 intr_frame 구조체의 포인터입니다.
  * @return 성공 시 갱신된 스택 포인터(rsp)를 반환하고, 할당 실패 시 NULL을 반환합니다.
