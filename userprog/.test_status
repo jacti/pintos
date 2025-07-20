@@ -1,2 +1,4 @@
 args-multiple FAIL
 args-none FAIL
+halt PASS
+exit FAIL
