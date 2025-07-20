@@ -19,9 +19,9 @@ static bool put_user(uint8_t *udst, uint8_t byte);
 /* $feat/syscall_handler */
 static void halt_handler(void);
 static void exit_handler(int status);
-static tid_t fork_handler(struct intr_frame *f);
+static pid_t fork_handler(const char *thread_name);
 static int exec_handler(const char *file);
-static int wait_handler(tid_t pid);
+static int wait_handler(pid_t pid);
 static bool create_handler(const char *file, unsigned initial_size);
 static bool remove_handler(const char *file);
 static int open_handler(const char *file);
@@ -207,13 +207,13 @@ static void halt_handler(void) {
 static void exit_handler(int status) {
     // 현재 쓰레드 종료 + exit status 저장
     struct thread *cur = thread_current();
-    // cur->status = status;
-    // printf("%s: exit(%d)\n", cur->name, status);
+    // cur->exit_status = status; thread에 exit_status 필요한지 확인 
+    printf("%s: exit(%d)\n", cur->name, status);
     thread_exit();
 }
 
 /* 현재 프로세스를 복사하여 새 프로세스 생성 */
-static tid_t fork_handler(struct intr_frame *f) {
+static pid_t fork_handler(const char *thread_name) {
     // 부모의 메모리와 상태를 복사해 자식 생성
     return -1;  // TODO: 구현 필요
 }
@@ -225,7 +225,7 @@ static int exec_handler(const char *file) {
 }
 
 /* 자식 프로세스가 종료될 때까지 대기 */
-static int wait_handler(tid_t pid) {
+static int wait_handler(pid_t pid) {
     return -1;  // TODO: 구현 필요
 }
 
