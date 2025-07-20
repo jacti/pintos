@@ -202,9 +202,9 @@ int process_wait(tid_t child_tid UNUSED) {
     /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
      * XXX:       to add infinite loop here before
      * XXX:       implementing the process_wait. */
-    // for (;;) {
-    //     barrier();
-    // }
+    for (;;) {
+        barrier();
+    }
     return -1;
 }
 
@@ -324,6 +324,7 @@ static bool load(const char *file_name, const char *args, struct intr_frame *if_
     off_t file_ofs;
     bool success = false;
     int i;
+    char *args_ = args;
 
     /* Allocate and activate page directory. */
     t->pml4 = pml4_create();
@@ -411,8 +412,8 @@ static bool load(const char *file_name, const char *args, struct intr_frame *if_
     argv[0] = file_name;
     uint8_t argc = 1;
     char *save_ptr;
-    if (*args != '\0') {
-        argv[argc] = strtok_r(args, ' ', &save_ptr);
+    if (*args_ != '\0') {
+        argv[argc] = strtok_r(args_, ' ', &save_ptr);
         while (argv[argc] != NULL) {
             argv[++argc] = strtok_r(NULL, ' ', &save_ptr);
         }
