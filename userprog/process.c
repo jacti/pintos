@@ -202,7 +202,15 @@ int process_exec(void *f_name) {
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int process_wait(tid_t child_tid UNUSED) {
-    return wait(child_tid);
+//     return wait(child_tid);
+    /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
+     * XXX:       to add infinite loop here before
+     * XXX:       implementing the process_wait. */
+    // for (;;) {
+    //     barrier();
+    // }
+    thread_sleep(100);
+    return -1;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -317,6 +325,8 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
  * Returns true if successful, false otherwise. */
 static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     struct thread *t = thread_current();
+    memset(t->name, 0, 16);
+    memcpy(t->name, file_name, strlen(file_name));
     struct ELF ehdr;
     struct file *file = NULL;
     off_t file_ofs;

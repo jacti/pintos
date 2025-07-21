@@ -66,9 +66,9 @@ void sema_down(struct semaphore *sema) {
 
     old_level = intr_disable();
     while (sema->value == 0) {
-        // $feat/thread_priority_less
-        list_insert_ordered(&sema->waiters, &thread_current()->elem, thread_priority_less, NULL);
-        // feat/thread_priority_less
+        // $feat/thread-priority-sema
+        list_push_back(&sema->waiters, &thread_current()->elem);
+        // feat/thread-priority-sema
         thread_block();
     }
     sema->value--;
@@ -108,7 +108,10 @@ void sema_up(struct semaphore *sema) {
 
     old_level = intr_disable();
     if (!list_empty(&sema->waiters)) {
-        struct list_elem *max_elem = list_max(&sema->waiters, thread_priority_less, NULL);
+        // max로 하면 실패하고 min으로 하면 성공함 thread_priority_less가 > 일때 리턴이라
+        // 그렇구나...
+        SortOrder order = ASECENDING;
+        struct list_elem *max_elem = list_max(&sema->waiters, thread_priority_less, &order);
         list_remove(max_elem);
         thread_unblock(list_entry(max_elem, struct thread, elem));
     }
@@ -239,7 +242,8 @@ void lock_acquire(struct lock *lock) {
         }
 
         struct list *holder_list = find_list(&holder->elem);
-        list_sort(holder_list, thread_priority_less, NULL);
+        SortOrder order = DESCENDING;
+        list_sort(holder_list, thread_priority_less, &order);
 
         sema_down(&lock->semaphore);
     }
@@ -307,8 +311,9 @@ void lock_release(struct lock *lock) {
     enum intr_level old_level = intr_disable();
 
     if (!list_empty(&lock->semaphore.waiters)) {
-        struct thread *release_thread =
-            list_entry(list_front(&lock->semaphore.waiters), struct thread, elem);
+        SortOrder order = ASECENDING;
+        struct thread *release_thread = list_entry(
+            list_max(&lock->semaphore.waiters, thread_priority_less, &order), struct thread, elem);
         list_extract(&release_thread->donor_list);
         release_thread->wait_on_lock = NULL;
     }

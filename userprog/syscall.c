@@ -9,6 +9,7 @@
 #include "threads/interrupt.h"
 #include "threads/loader.h"
 #include "threads/thread.h"
+#include "user/syscall.h"
 #include "userprog/gdt.h"
 
 void syscall_entry(void);
@@ -291,7 +292,7 @@ static int write_handler(int fd, const void *buffer,
 
     if (is_user_accesable(buffer, size, false)) {
         if (fd == 0) {
-            printf("you do wrting stdin. haven't writed at the stdin");
+            exit_handler(-1);
         } else if (fd == 1) {
             putbuf(buffer, size);
         } else if (fd > 2) {
