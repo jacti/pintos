@@ -231,10 +231,15 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
  * @param aux 추가 전달 데이터 (사용되지 않음, NULL이 전달됨)
  * @return 첫 번째 스레드의 우선순위가 더 높으면 true, 두 번째 스레드의 우선순위가 더 높으면 false
  */
-bool thread_priority_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+bool thread_priority_less(const struct list_elem *a, const struct list_elem *b, void *aux) {
+    SortOrder *order = (SortOrder *)aux;
     struct thread *t_a = list_entry(a, struct thread, elem);
     struct thread *t_b = list_entry(b, struct thread, elem);
-    return get_effective_priority(t_a) > get_effective_priority(t_b);
+    if (*order == ASECENDING) {
+        return get_effective_priority(t_a) < get_effective_priority(t_b);
+    } else {
+        return get_effective_priority(t_a) > get_effective_priority(t_b);
+    }
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -265,7 +270,8 @@ void thread_unblock(struct thread *t) {
 
     old_level = intr_disable();
     ASSERT(t->status == THREAD_BLOCKED);
-    list_insert_ordered(&ready_list, &t->elem, thread_priority_less, NULL);
+    SortOrder order = DESCENDING;
+    list_insert_ordered(&ready_list, &t->elem, thread_priority_less, &order);
     t->status = THREAD_READY;
     intr_set_level(old_level);
 }
@@ -322,8 +328,10 @@ void thread_yield(void) {
     ASSERT(!intr_context());
 
     old_level = intr_disable();
-    if (curr != idle_thread)
-        list_insert_ordered(&ready_list, &curr->elem, thread_priority_less, NULL);
+    if (curr != idle_thread) {
+        SortOrder order = DESCENDING;
+        list_insert_ordered(&ready_list, &curr->elem, thread_priority_less, &order);
+    }
     do_schedule(THREAD_READY);
     intr_set_level(old_level);
 }
@@ -857,7 +865,8 @@ void priority_update(void) {
         // printf("tid : %lld, priority : %lld, nice : %lld, recent-cpu : %lld\n", t->tid,
         // t->priority, t->nice, t->recent_cpu);
     }
-    list_sort(&ready_list, thread_priority_less, NULL);
+    SortOrder order = DESCENDING;
+    list_sort(&ready_list, thread_priority_less, &order);
     intr_yield_on_return();
 }
 // test-temp/mlfqs

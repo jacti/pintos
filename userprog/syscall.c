@@ -8,6 +8,7 @@
 #include "threads/interrupt.h"
 #include "threads/loader.h"
 #include "threads/thread.h"
+#include "user/syscall.h"
 #include "userprog/gdt.h"
 
 void syscall_entry(void);
@@ -207,7 +208,7 @@ static void halt_handler(void) {
 static void exit_handler(int status) {
     // 현재 쓰레드 종료 + exit status 저장
     struct thread *cur = thread_current();
-    // cur->exit_status = status; thread에 exit_status 필요한지 확인 
+    // cur->exit_status = status; thread에 exit_status 필요한지 확인
     printf("%s: exit(%d)\n", cur->name, status);
     thread_exit();
 }
@@ -279,7 +280,7 @@ static int write_handler(int fd, const void *buffer,
 
     if (is_user_accesable(buffer, size, false)) {
         if (fd == 0) {
-            printf("you do wrting stdin. haven't writed at the stdin");
+            exit_handler(-1);
         } else if (fd == 1) {
             putbuf(buffer, size);
         } else if (fd > 2) {

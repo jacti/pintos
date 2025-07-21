@@ -83,6 +83,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef enum { ASECENDING, DESCENDING } SortOrder;  //$fix/thread-priority-sema
+
 /* List element. */
 struct list_elem {
     struct list_elem *prev; /* Previous list element. */
