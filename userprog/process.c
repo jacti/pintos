@@ -167,7 +167,7 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
      *    check whether parent's page is writable or not (set WRITABLE
      *    according to the result). */
     writable = is_writable(pte);
-    install_page((uint8_t *)pg_round_down(va), newpage, writable);
+    pml4_set_page(current->pml4, (uint8_t *)pg_round_down(va), newpage, writable);
     memcpy(newpage, parent_page, PGSIZE);
 
     /* 5. Add new page to child's page table at address VA with WRITABLE
