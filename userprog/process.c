@@ -12,6 +12,7 @@
 #include "filesys/filesys.h"
 #include "include/lib/user/syscall.h"
 #include "intrinsic.h"
+#include "lib/user/syscall.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
@@ -36,7 +37,8 @@ static uint64_t *pop_stack(size_t size, struct intr_frame *if_);
 /**
  * @brief fork 작업에 필요한 데이터를 전달하기 위한 구조체
  * @branch feat/fork_handler
- * @details 부모 프로세스의 정보와 인터럽트 프레임을 자식 프로세스 생성 함수에 전달하기 위해 사용됩니다.
+ * @details 부모 프로세스의 정보와 인터럽트 프레임을 자식 프로세스 생성 함수에 전달하기 위해
+ * 사용됩니다.
  */
 struct fork_data {
     struct thread *parent;        /**< 부모 스레드 포인터 */
@@ -65,11 +67,13 @@ tid_t process_create_initd(const char *file_name) {
     strlcpy(fn_copy, file_name, PGSIZE);
 
     /* Create a new thread to execute FILE_NAME. */
-    tid = thread_create(file_name, PRI_DEFAULT, initd, fn_copy);
+    tid = fork(fn_copy);
+    if (tid == 0) {
+        exec(fn_copy);
+        NOT_REACHED();
+    }
     if (tid == TID_ERROR)
         palloc_free_page(fn_copy);
-    else {
-    }
     return tid;
 }
 
@@ -134,22 +138,33 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
     void *newpage;
     bool writable;
 
-    /* 1. TODO: If the parent_page is kernel page, then return immediately. */
+    /* 1. If the parent_page is kernel page, then return immediately. */
+    if (parent->pml4 == NULL) {
+        return true;
+    }
 
     /* 2. Resolve VA from the parent's page map level 4. */
     parent_page = pml4_get_page(parent->pml4, va);
 
-    /* 3. TODO: Allocate new PAL_USER page for the child and set result to
-     *    TODO: NEWPAGE. */
+    /* 3. Allocate new PAL_USER page for the child and set result to
+     *    NEWPAGE. */
+    newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    if (newpage == NULL) {
+        return false;
+    }
 
-    /* 4. TODO: Duplicate parent's page to the new page and
-     *    TODO: check whether parent's page is writable or not (set WRITABLE
-     *    TODO: according to the result). */
+    /* 4. Duplicate parent's page to the new page and
+     *    check whether parent's page is writable or not (set WRITABLE
+     *    according to the result). */
+    memcpy(newpage, parent_page, PGSIZE);
+    writable = is_writable(pte);
 
     /* 5. Add new page to child's page table at address VA with WRITABLE
      *    permission. */
     if (!pml4_set_page(current->pml4, va, newpage, writable)) {
-        /* 6. TODO: if fail to insert page, do error handling. */
+        /* 6. if fail to insert page, do error handling. */
+        palloc_free_page(newpage);
+        return false;
     }
     return true;
 }
@@ -222,7 +237,7 @@ static void __do_fork(void *aux) {
 
     free(fork_data);
     sema_up(&(current->parent->wait_sema));
-    
+
     /* Finally, switch to the newly created process. */
     if (succ)
         do_iret(&if_);
@@ -274,15 +289,14 @@ int process_exec(void *f_name) {
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int process_wait(tid_t child_tid UNUSED) {
-//     return wait(child_tid);
+    //     return wait(child_tid);
     /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
      * XXX:       to add infinite loop here before
      * XXX:       implementing the process_wait. */
     // for (;;) {
     //     barrier();
     // }
-    thread_sleep(100);
-    return -1;
+    return wait(child_tid);
 }
 
 /* Exit the process. This function is called by thread_exit (). */
