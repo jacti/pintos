@@ -156,7 +156,9 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
 
     /* 3. Allocate new PAL_USER page for the child and set result to
      *    NEWPAGE. */
-    newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    if (newpage = pml4_get_page(current->pml4, va) == NULL) {
+        newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    }
     if (newpage == NULL) {
         return false;
     }
@@ -164,8 +166,9 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
     /* 4. Duplicate parent's page to the new page and
      *    check whether parent's page is writable or not (set WRITABLE
      *    according to the result). */
-    memcpy(newpage, parent_page, PGSIZE);
     writable = is_writable(pte);
+    install_page((uint8_t *)pg_round_down(va), newpage, writable);
+    memcpy(newpage, parent_page, PGSIZE);
 
     /* 5. Add new page to child's page table at address VA with WRITABLE
      *    permission. */
@@ -324,6 +327,7 @@ void process_exit(void) {
         sema_down(&cur->wait_sema);
     }
     process_cleanup();
+    thread_exit();
 }
 
 /* Free the current process's resources. */
