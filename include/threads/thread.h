@@ -16,6 +16,7 @@
  * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
  */
 #include "filesys/file.h"
+#include "threads/synch.h"
 #endif
 // ADD/write_handler
 
@@ -154,6 +155,14 @@ struct thread {
      */
     struct file *fdt[64];  //$Add/write_handler
 
+    //$feat/process-wait
+    struct thread *parent;
+    struct list childs;
+    struct list_elem sibling_elem;
+    struct semaphore wait_sema;
+    int exit_status;
+    // feat/process-wait
+
 #endif
 #ifdef VM
     /* Table for whole virtual memory owned by thread. */
@@ -215,5 +224,7 @@ void do_iret(struct intr_frame *tf);
 void mlfq_run_for_sec(void);
 void priority_update(void);
 // test-temp/mlfqs
+
+inline bool is_user_thread(void);
 
 #endif /* threads/thread.h */
