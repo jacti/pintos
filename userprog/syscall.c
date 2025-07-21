@@ -4,11 +4,13 @@
 #include <string.h>
 #include <syscall-nr.h>
 
+#include "include/lib/user/syscall.h"
 #include "intrinsic.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/loader.h"
 #include "threads/thread.h"
+#include "user/syscall.h"
 #include "userprog/gdt.h"
 #include "include/lib/user/syscall.h"
 
@@ -207,10 +209,8 @@ static void halt_handler(void) {
 
 /* 현재 프로세스를 종료 */
 static void exit_handler(int status) {
-    // 현재 쓰레드 종료 + exit status 저장
     struct thread *cur = thread_current();
-    // cur->exit_status = status; thread에 exit_status 필요한지 확인 
-    printf("%s: exit(%d)\n", cur->name, status);
+    cur->exit_status = status;
     thread_exit();
 }
 
@@ -240,7 +240,20 @@ static int exec_handler(const char *file) {
 
 /* 자식 프로세스가 종료될 때까지 대기 */
 static int wait_handler(pid_t pid) {
-    return -1;  // TODO: 구현 필요
+    int child_exit_status = -1;
+    struct thread *curr = thread_current();
+    for (struct list_elem *e = list_begin(&curr->childs); e != list_end(&curr->childs);
+         e = list_next(&curr->childs)) {
+        struct thread *t = list_entry(e, struct thread, sibling_elem);
+        if (t && t->tid == pid) {
+            sema_down(&curr->wait_sema);
+            barrier();
+            child_exit_status = t->exit_status;
+            sema_up(&t->wait_sema);
+            break;
+        }
+    }
+    return child_exit_status;
 }
 
 /* 파일 생성 */
@@ -293,7 +306,7 @@ static int write_handler(int fd, const void *buffer,
 
     if (is_user_accesable(buffer, size, false)) {
         if (fd == 0) {
-            printf("you do wrting stdin. haven't writed at the stdin");
+            exit_handler(-1);
         } else if (fd == 1) {
             putbuf(buffer, size);
         } else if (fd > 2) {
@@ -304,8 +317,10 @@ static int write_handler(int fd, const void *buffer,
             // 수정필요  release_console();
         }
         return size;
+    } else {
+        exit_handler(-1);
     }
-
+    NOT_REACHED()
     return -1;
 }
 

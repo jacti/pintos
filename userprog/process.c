@@ -10,6 +10,7 @@
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "include/lib/user/syscall.h"
 #include "intrinsic.h"
 #include "threads/flags.h"
 #include "threads/init.h"
@@ -67,6 +68,8 @@ tid_t process_create_initd(const char *file_name) {
     tid = thread_create(file_name, PRI_DEFAULT, initd, fn_copy);
     if (tid == TID_ERROR)
         palloc_free_page(fn_copy);
+    else {
+    }
     return tid;
 }
 
@@ -271,23 +274,26 @@ int process_exec(void *f_name) {
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int process_wait(tid_t child_tid UNUSED) {
+//     return wait(child_tid);
     /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
      * XXX:       to add infinite loop here before
      * XXX:       implementing the process_wait. */
-    for (;;) {
-        barrier();
-    }
+    // for (;;) {
+    //     barrier();
+    // }
+    thread_sleep(100);
     return -1;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
-    struct thread *curr = thread_current();
-    /* TODO: Your code goes here.
-     * TODO: Implement process termination message (see
-     * TODO: project2/process_termination.html).
-     * TODO: We recommend you to implement process resource cleanup here. */
-
+    struct thread *cur = thread_current();
+    if (cur->parent != NULL) {
+        sema_up(&cur->parent->wait_sema);
+        sema_down(&cur->wait_sema);
+    }
+    if (is_user_thread())
+        printf("%s: exit(%d)\n", cur->name, cur->exit_status);
     process_cleanup();
 }
 
@@ -391,6 +397,8 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
  * Returns true if successful, false otherwise. */
 static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     struct thread *t = thread_current();
+    memset(t->name, 0, 16);
+    memcpy(t->name, file_name, strlen(file_name));
     struct ELF ehdr;
     struct file *file = NULL;
     off_t file_ofs;

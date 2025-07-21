@@ -78,6 +78,12 @@ static size_t get_count_threads(void);
 static void load_avg_update(void);
 // test-temp/mlfqs-iizxcv
 
+//$feat/process-wait
+inline bool is_user_thread(void) {
+    return (thread_current()->pml4 != NULL);
+}
+// feat/process-wait
+
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -231,10 +237,15 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
  * @param aux 추가 전달 데이터 (사용되지 않음, NULL이 전달됨)
  * @return 첫 번째 스레드의 우선순위가 더 높으면 true, 두 번째 스레드의 우선순위가 더 높으면 false
  */
-bool thread_priority_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+bool thread_priority_less(const struct list_elem *a, const struct list_elem *b, void *aux) {
+    SortOrder *order = (SortOrder *)aux;
     struct thread *t_a = list_entry(a, struct thread, elem);
     struct thread *t_b = list_entry(b, struct thread, elem);
-    return get_effective_priority(t_a) > get_effective_priority(t_b);
+    if (*order == ASECENDING) {
+        return get_effective_priority(t_a) < get_effective_priority(t_b);
+    } else {
+        return get_effective_priority(t_a) > get_effective_priority(t_b);
+    }
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -265,7 +276,8 @@ void thread_unblock(struct thread *t) {
 
     old_level = intr_disable();
     ASSERT(t->status == THREAD_BLOCKED);
-    list_insert_ordered(&ready_list, &t->elem, thread_priority_less, NULL);
+    SortOrder order = DESCENDING;
+    list_insert_ordered(&ready_list, &t->elem, thread_priority_less, &order);
     t->status = THREAD_READY;
     intr_set_level(old_level);
 }
@@ -322,8 +334,10 @@ void thread_yield(void) {
     ASSERT(!intr_context());
 
     old_level = intr_disable();
-    if (curr != idle_thread)
-        list_insert_ordered(&ready_list, &curr->elem, thread_priority_less, NULL);
+    if (curr != idle_thread) {
+        SortOrder order = DESCENDING;
+        list_insert_ordered(&ready_list, &curr->elem, thread_priority_less, &order);
+    }
     do_schedule(THREAD_READY);
     intr_set_level(old_level);
 }
@@ -584,15 +598,19 @@ static void init_thread(struct thread *t, const char *name, int priority) {
  * @brief fd 0,1 은 표준 입출력을 써야하기에 나중에 NULL이면 리턴하는 식으로 하기 위해 정의
  */
 #ifdef USERPROG
-    // for 문으로 매크로 수만큼 null초기화
+    // FIXME : fdt를 for 문으로 매크로 수만큼 null초기화 현재는 64개 크기 중 2개만 초기화
     t->fdt[0] = NULL;
     t->fdt[1] = NULL;
-    
-    // $feat/fork_handler
+  
+    //$feat/process-wait
     t->parent = NULL;
     list_init(&t->childs);
+    t->sibling_elem.prev = NULL;
+    t->sibling_elem.next = NULL;
     sema_init(&t->wait_sema, 0);
-    // feat/fork_handler
+    t->exit_status = -1;
+    // feat/process-wait
+
 #endif
     // ADD/write_handler
 
@@ -863,7 +881,8 @@ void priority_update(void) {
         // printf("tid : %lld, priority : %lld, nice : %lld, recent-cpu : %lld\n", t->tid,
         // t->priority, t->nice, t->recent_cpu);
     }
-    list_sort(&ready_list, thread_priority_less, NULL);
+    SortOrder order = DESCENDING;
+    list_sort(&ready_list, thread_priority_less, &order);
     intr_yield_on_return();
 }
 // test-temp/mlfqs
