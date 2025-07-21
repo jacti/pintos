@@ -587,6 +587,12 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     // for 문으로 매크로 수만큼 null초기화
     t->fdt[0] = NULL;
     t->fdt[1] = NULL;
+    
+    // $feat/fork_handler
+    t->parent = NULL;
+    list_init(&t->childs);
+    sema_init(&t->wait_sema, 0);
+    // feat/fork_handler
 #endif
     // ADD/write_handler
 

@@ -1,6 +1,7 @@
 #include "userprog/syscall.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 
 #include "intrinsic.h"
@@ -9,6 +10,7 @@
 #include "threads/loader.h"
 #include "threads/thread.h"
 #include "userprog/gdt.h"
+#include "include/lib/user/syscall.h"
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -19,7 +21,7 @@ static bool put_user(uint8_t *udst, uint8_t byte);
 /* $feat/syscall_handler */
 static void halt_handler(void);
 static void exit_handler(int status);
-static pid_t fork_handler(const char *thread_name);
+static pid_t fork_handler(const char *thread_name, struct intr_frame *f);
 static int exec_handler(const char *file);
 static int wait_handler(pid_t pid);
 static bool create_handler(const char *file, unsigned initial_size);
@@ -69,7 +71,7 @@ void syscall_handler(struct intr_frame *f) {
             exit_handler(f->R.rdi);
             break;
         case SYS_FORK:  // syscall_num 2
-            f->R.rax = fork_handler(f);
+            f->R.rax = fork_handler(f->R.rdi, f);
             break;
         case SYS_EXEC:  // syscall_num 3
             f->R.rax = exec_handler(f->R.rdi);
@@ -212,10 +214,22 @@ static void exit_handler(int status) {
     thread_exit();
 }
 
-/* 현재 프로세스를 복사하여 새 프로세스 생성 */
-static pid_t fork_handler(const char *thread_name) {
+/**
+ * @brief 현재 프로세스를 복사하여 새 프로세스를 생성합니다.
+ *
+ * @branch feat/fork_handler
+ * @param thread_name 새 프로세스의 이름
+ * @param f 현재 프로세스의 인터럽트 프레임
+ * @return 성공 시 자식 프로세스의 PID, 실패 시 TID_ERROR
+ * 이 함수는 현재 실행 중인 프로세스의 메모리와 상태를 복사하여
+ * 새로운 자식 프로세스를 생성합니다. 부모 프로세스는 자식 프로세스의
+ * 생성이 완료될 때까지 대기하며, 자식 프로세스는 부모와 동일한
+ * 메모리 공간을 가지게 됩니다.
+ * @see process_fork()
+ */
+static pid_t fork_handler(const char *thread_name, struct intr_frame *f) {
     // 부모의 메모리와 상태를 복사해 자식 생성
-    return -1;  // TODO: 구현 필요
+    return process_fork(thread_name, f);
 }
 
 /* 사용자 프로그램 실행 */
