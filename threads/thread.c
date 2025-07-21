@@ -601,14 +601,14 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     // FIXME : fdt를 for 문으로 매크로 수만큼 null초기화 현재는 64개 크기 중 2개만 초기화
     t->fdt[0] = NULL;
     t->fdt[1] = NULL;
-
+  
     //$feat/process-wait
     t->parent = NULL;
     list_init(&t->childs);
     t->sibling_elem.prev = NULL;
     t->sibling_elem.next = NULL;
     sema_init(&t->wait_sema, 0);
-    t->exit_status = 1;
+    t->exit_status = -1;
     // feat/process-wait
 
 #endif

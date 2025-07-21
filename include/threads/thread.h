@@ -7,6 +7,7 @@
 
 #include "fixed_point.h"  // $Add/fixed_point_h
 #include "threads/interrupt.h"
+#include "threads/synch.h" // $ feat/fork_handler
 
 //$ADD/write_handler
 #ifdef USERPROG
@@ -155,7 +156,7 @@ struct thread {
      */
     struct file *fdt[64];  //$Add/write_handler
 
-    //$feat/process-wait
+    // $feat/process-wait
     struct thread *parent;
     struct list childs;
     struct list_elem sibling_elem;

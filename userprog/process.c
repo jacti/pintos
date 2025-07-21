@@ -33,6 +33,16 @@ static void __do_fork(void *);
 static uint64_t *push_stack(char *arg, size_t size, struct intr_frame *if_);
 static uint64_t *pop_stack(size_t size, struct intr_frame *if_);
 
+/**
+ * @brief fork 작업에 필요한 데이터를 전달하기 위한 구조체
+ * @branch feat/fork_handler
+ * @details 부모 프로세스의 정보와 인터럽트 프레임을 자식 프로세스 생성 함수에 전달하기 위해 사용됩니다.
+ */
+struct fork_data {
+    struct thread *parent;        /**< 부모 스레드 포인터 */
+    struct intr_frame *parent_if; /**< 부모의 인터럽트 프레임 포인터 */
+};
+
 /* General process initializer for initd and other process. */
 static void process_init(void) {
     struct thread *current = thread_current();
@@ -78,9 +88,40 @@ static void initd(void *f_name) {
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
-tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED) {
+/**
+ * @brief 현재 프로세스를 복제하여 새로운 프로세스를 생성합니다.
+ * @branch feat/fork_handler
+ * @param name 새 프로세스의 이름
+ * @param if_ 부모 프로세스의 인터럽트 프레임
+ * @return 성공 시 자식 프로세스의 TID, 실패 시 TID_ERROR
+ * 이 함수는 현재 실행 중인 프로세스의 메모리와 상태를 복사하여
+ * 새로운 자식 프로세스를 생성합니다. 부모 프로세스는 자식 프로세스의
+ * 생성이 완료될 때까지 세마포어를 통해 대기
+ * @details
+ * 1. fork_data 구조체를 할당하여 부모 정보와 인터럽트 프레임을 저장
+ * 2. thread_create를 통해 __do_fork 함수를 실행할 새 스레드 생성
+ * 3. 세마포어를 통해 자식 프로세스 생성 완료 대기
+ * 4. 자식 프로세스의 TID 반환
+ * @note 메모리 할당 실패 시 TID_ERROR를 반환합니다.
+ * @see __do_fork()
+ */
+tid_t process_fork(const char *name, struct intr_frame *if_) {
     /* Clone current thread to new thread.*/
-    return thread_create(name, PRI_DEFAULT, __do_fork, thread_current());
+    struct thread *curr = thread_current();
+
+    struct fork_data *fork_data = malloc(sizeof(struct fork_data));
+    fork_data->parent = curr;
+    fork_data->parent_if = if_;
+
+    tid_t tid = thread_create(name, PRI_DEFAULT, __do_fork, fork_data);
+    if (tid == TID_ERROR) {
+        free(fork_data);
+        return TID_ERROR;
+    }
+
+    sema_down(&curr->wait_sema);
+
+    return tid;
 }
 
 #ifndef VM
@@ -118,13 +159,39 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
  * Hint) parent->tf does not hold the userland context of the process.
  *       That is, you are required to pass second argument of process_fork to
  *       this function. */
+/**
+ * @brief 부모 프로세스의 실행 컨텍스트를 복사하여 자식 프로세스를 생성합니다.
+ *
+ * @branch feat/fork_handler
+ * @param aux fork_data 구조체 포인터 (부모 정보와 인터럽트 프레임 포함)
+ *
+ * 이 함수는 새로 생성된 스레드에서 실행되며, 부모 프로세스의 메모리와
+ * 상태를 복사하여 자식 프로세스를 완전히 생성합니다.
+ *
+ * @details
+ * 1. 부모-자식 관계 설정 (parent, childs 리스트)
+ * 2. 부모의 인터럽트 프레임을 자식에게 복사
+ * 3. 페이지 테이블 생성 및 메모리 복사
+ * 4. 파일 디스크립터 복사 (TODO)
+ * 5. 프로세스 초기화
+ * 6. 부모에게 완료 신호 전송
+ * 7. 자식 프로세스 실행 시작
+ *
+ * @note 부모 프로세스는 이 함수가 완료될 때까지 대기합니다.
+ * @see process_fork()
+ */
 static void __do_fork(void *aux) {
     struct intr_frame if_;
-    struct thread *parent = (struct thread *)aux;
+    struct fork_data *fork_data = (struct fork_data *)aux;
+    struct thread *parent = fork_data->parent;
     struct thread *current = thread_current();
     /* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-    struct intr_frame *parent_if;
+    struct intr_frame *parent_if = fork_data->parent_if;
     bool succ = true;
+
+    /* 부모-자식 관계 설정 */
+    current->parent = parent;
+    list_push_back(&parent->childs, &current->sibling_elem);
 
     /* 1. Read the cpu context to local stack. */
     memcpy(&if_, parent_if, sizeof(struct intr_frame));
@@ -135,6 +202,7 @@ static void __do_fork(void *aux) {
         goto error;
 
     process_activate(current);
+
 #ifdef VM
     supplemental_page_table_init(&current->spt);
     if (!supplemental_page_table_copy(&current->spt, &parent->spt))
@@ -152,10 +220,14 @@ static void __do_fork(void *aux) {
 
     process_init();
 
+    free(fork_data);
+    sema_up(&(current->parent->wait_sema));
+    
     /* Finally, switch to the newly created process. */
     if (succ)
         do_iret(&if_);
 error:
+    free(fork_data);
     thread_exit();
 }
 
