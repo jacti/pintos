@@ -880,3 +880,7 @@ void priority_update(void) {
     intr_yield_on_return();
 }
 // test-temp/mlfqs
+
+bool is_user_thread(void) {
+    return (thread_current()->pml4 != NULL);
+}

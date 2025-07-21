@@ -227,9 +227,7 @@ void priority_update(void);
 // test-temp/mlfqs
 
 //$feat/process-wait
-inline bool is_user_thread(void) {
-    return (thread_current()->pml4 != NULL);
-}
+bool is_user_thread(void);
 // feat/process-wait
 
 #endif /* threads/thread.h */

@@ -45,6 +45,11 @@ struct fork_data {
     struct intr_frame *parent_if; /**< 부모의 인터럽트 프레임 포인터 */
 };
 
+struct init_data {
+    struct thread *parent;
+    const char *file_name;
+};
+
 /* General process initializer for initd and other process. */
 static void process_init(void) {
     struct thread *current = thread_current();
@@ -58,6 +63,8 @@ static void process_init(void) {
 tid_t process_create_initd(const char *file_name) {
     char *fn_copy;
     tid_t tid;
+    struct init_data init_data;
+    struct thread *t = thread_current();
 
     /* Make a copy of FILE_NAME.
      * Otherwise there's a race between the caller and load(). */
@@ -65,27 +72,28 @@ tid_t process_create_initd(const char *file_name) {
     if (fn_copy == NULL)
         return TID_ERROR;
     strlcpy(fn_copy, file_name, PGSIZE);
-
+    init_data.file_name = fn_copy;
+    init_data.parent = t;
     /* Create a new thread to execute FILE_NAME. */
-    tid = fork(fn_copy);
-    if (tid == 0) {
-        exec(fn_copy);
-        NOT_REACHED();
-    }
+    tid = thread_create(file_name, PRI_DEFAULT, initd, &init_data);
+    sema_down(&t->wait_sema);
     if (tid == TID_ERROR)
         palloc_free_page(fn_copy);
     return tid;
 }
 
 /* A thread function that launches first user process. */
-static void initd(void *f_name) {
+static void initd(void *init_data_) {
 #ifdef VM
     supplemental_page_table_init(&thread_current()->spt);
 #endif
-
     process_init();
-
-    if (process_exec(f_name) < 0)
+    struct init_data *init_data = (struct init_data *)init_data_;
+    struct thread *t = thread_current();
+    t->parent = init_data->parent;
+    list_push_back(&t->parent->childs, &t->sibling_elem);
+    sema_up(&t->parent->wait_sema);
+    if (process_exec(init_data->file_name) < 0)
         PANIC("Fail to launch initd\n");
     NOT_REACHED();
 }
@@ -223,7 +231,7 @@ static void __do_fork(void *aux) {
     if (!supplemental_page_table_copy(&current->spt, &parent->spt))
         goto error;
 #else
-    if (!pml4_for_each(parent->pml4, duplicate_pte, parent))
+    if (parent->pml4 && !pml4_for_each(parent->pml4, duplicate_pte, parent))
         goto error;
 #endif
 
@@ -288,26 +296,33 @@ int process_exec(void *f_name) {
  *
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
-int process_wait(tid_t child_tid UNUSED) {
-    //     return wait(child_tid);
-    /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-     * XXX:       to add infinite loop here before
-     * XXX:       implementing the process_wait. */
-    // for (;;) {
-    //     barrier();
-    // }
-    return wait(child_tid);
+int process_wait(tid_t child_tid) {
+    int child_exit_status = -1;
+    struct thread *curr = thread_current();
+    for (struct list_elem *e = list_begin(&curr->childs); e != list_end(&curr->childs);
+         e = list_next(&curr->childs)) {
+        struct thread *t = list_entry(e, struct thread, sibling_elem);
+        if (t && t->tid == child_tid) {
+            sema_down(&curr->wait_sema);
+            barrier();
+            child_exit_status = t->exit_status;
+            sema_up(&t->wait_sema);
+            break;
+        }
+    }
+    return child_exit_status;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
     struct thread *cur = thread_current();
     if (cur->parent != NULL) {
+        if (is_user_thread()) {
+            printf("%s: exit(%d)\n", cur->name, cur->exit_status);
+        }
         sema_up(&cur->parent->wait_sema);
         sema_down(&cur->wait_sema);
     }
-    if (is_user_thread())
-        printf("%s: exit(%d)\n", cur->name, cur->exit_status);
     process_cleanup();
 }
 
