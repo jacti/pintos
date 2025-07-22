@@ -29,6 +29,8 @@ if (( $# == 2 )); then
   fi
 fi
 
+echo "sh file now running..."
+
 # 스크립트 자신이 있는 디렉터리 (usrprog/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 프로젝트 루트에서 Pintos 환경 활성화

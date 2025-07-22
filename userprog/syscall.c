@@ -14,9 +14,16 @@
 #include "userprog/gdt.h"
 #include "userprog/process.h"
 
+enum pointer_check_flags {
+    P_KERNEL = 0b0, /* kernel addr */
+    P_USER = 0b1,   /* user addr */
+    P_WRITE = 0b10, /* need write permission */
+    IS_STR = 0b100  /* pointer is char* */
+};
+
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
-static bool is_user_accesable(void *start, size_t size, bool write);
+static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags flag);
 static int64_t get_user(const uint8_t *uaddr);
 static bool put_user(uint8_t *udst, uint8_t byte);
 
@@ -163,14 +170,21 @@ static bool put_user(uint8_t *udst, uint8_t byte) {
  * 또한, 검사 범위가 커널 영역(KERN_BASE)이상일 경우 즉시 false를 반환합니다.
  * get_user 및 put_user는 페이지 폴트 발생 시 -1을 반환하도록 구현되어 있습니다.
  */
-static bool is_user_accesable(void *start, size_t size, bool write) {
+static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags flag) {
+    if (flag && IS_STR) {
+        if (get_user((uint8_t *)start) == (int64_t)-1) {
+            return -1;
+        }
+        size = strlen(start) + 1;
+    }
+
     uintptr_t end = (uintptr_t)start + size, ptr = start;
     size_t n = pg_diff(start, end);
     uint8_t byte;
 
     ASSERT((uintptr_t)start <= (uintptr_t)end);
 
-    if (!is_user_vaddr(end)) {
+    if (start == NULL || (flag && P_USER && !is_user_vaddr(end))) {
         return false;
     }
 
@@ -178,7 +192,7 @@ static bool is_user_accesable(void *start, size_t size, bool write) {
         if ((byte = get_user((uint8_t *)ptr)) == (int64_t)-1) {
             return false;
         }
-        if (write) {
+        if (flag && P_WRITE) {
             if (put_user(ptr, byte) == (int64_t)-1) {
                 return false;
             }
@@ -231,7 +245,7 @@ static void exit_handler(int status) {
  * @see process_fork()
  */
 static pid_t fork_handler(const char *thread_name, struct intr_frame *f) {
-    if (is_user_accesable(thread_name, strlen(thread_name) + 1, false)) {
+    if (is_user_accesable(thread_name, 0, P_USER || IS_STR)) {
         return process_fork(thread_name, f);
     } else {
         exit_handler(-1);
@@ -240,7 +254,7 @@ static pid_t fork_handler(const char *thread_name, struct intr_frame *f) {
 
 /* 사용자 프로그램 실행 */
 static int exec_handler(const char *file) {
-    if (is_user_accesable(file, strlen(file) + 1, false)) {
+    if (is_user_accesable(file, 0, P_KERNEL)) {
         return process_exec(file);
     } else {
         exit_handler(-1);
@@ -259,7 +273,7 @@ static bool create_handler(const char *file, unsigned initial_size) {
 
 /* 파일 삭제 */
 static bool remove_handler(const char *file) {
-    if (is_user_accesable(file, strlen(file) + 1, write)) {
+    if (is_user_accesable(file, 0, P_KERNEL || P_WRITE || IS_STR)) {
         return filesys_remove(file);  // TODO: filesys_remove 호출
     }
     return false;
@@ -267,11 +281,12 @@ static bool remove_handler(const char *file) {
 
 /* 파일 열기 */
 static int open_handler(const char *file_name) {
-    if (is_user_accesable(file_name, strlen(file_name) + 1, false)) {
+    if (file_name && is_user_accesable(file_name, 0, P_USER || IS_STR)) {
         struct file *file = filesys_open(file_name);
+        if (file == NULL) {
+            return -1;
+        }
         return set_fd(file);
-    } else {
-        exit_handler(-1);
     }
     return -1;  // TODO: file 객체 반환 -> fd_table에 저장
 }
@@ -286,7 +301,7 @@ static int filesize_handler(int fd) {
 /* 파일 또는 STDIN에서 읽기 */
 static int read_handler(int fd, void *buffer, unsigned size) {
     struct file *get_file = get_file_from_fd(fd);
-    if (is_user_accesable(buffer, size, true)) {
+    if (is_user_accesable(buffer, size, P_USER)) {
         if (get_file == global_stdin) {
             for (int i = 0; i < size; i++) {
                 char a = input_getc();
@@ -326,7 +341,7 @@ static int read_handler(int fd, void *buffer, unsigned size) {
 static int write_handler(int fd, const void *buffer,
                          unsigned size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
 
-    if (is_user_accesable(buffer, size, false)) {
+    if (is_user_accesable(buffer, size, P_USER)) {
         struct file *get_file = get_file_from_fd(fd);
         if (get_file == global_stdin) {
             exit_handler(-1);
@@ -334,6 +349,9 @@ static int write_handler(int fd, const void *buffer,
             putbuf(buffer, size);
         } else {
             // FIXME: 락이랑 접근해서 작성하는거 구현할 것
+            if (get_file == NULL) {
+                return -1;
+            }
             file_write(get_file, buffer, size);
         }
         return size;
@@ -348,13 +366,16 @@ static int write_handler(int fd, const void *buffer,
 static void seek_handler(int fd, unsigned position) {
     // TODO: file_seek 호출
     struct file *get_file = get_file_from_fd(fd);
+    if (get_file == NULL || get_file == global_stdin || get_file == global_stdout) {
+        return;
+    }
     file_seek(get_file, position);
 }
 
 /* 파일 커서 위치 반환 */
 static unsigned tell_handler(int fd) {
     struct file *f = get_file_from_fd(fd);
-    if (f == global_stdin || f == global_stdout) {
+    if (f == NULL || f == global_stdin || f == global_stdout) {
         exit_handler(-1);
     } else {
         return file_tell(f);
@@ -364,7 +385,7 @@ static unsigned tell_handler(int fd) {
 /* 파일 닫기 */
 static void close_handler(int fd) {
     struct file *f = get_file_from_fd(fd);
-    if (f == global_stdin || f == global_stdout) {
+    if (f == NULL || f == global_stdin || f == global_stdout) {
         exit_handler(-1);
     } else {
         file_close(f);
