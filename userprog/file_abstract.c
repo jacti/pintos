@@ -1,8 +1,11 @@
 #include "userprog/file_abstract.h"
 
-#include "file_abstract.h"
 #include "filesys/filesys.h"
 #include "threads/malloc.h"
+#include "userprog/file_abstract.h"
+
+struct File STDIN_FILE = {.type = STDIN, .file_ptr = NULL};
+struct File STDOUT_FILE = {.type = STDOUT, .file_ptr = NULL};
 
 struct File* open_file(const char* name) {
     // 추후 디렉토리 오픈도 구분해서 추가
@@ -13,7 +16,7 @@ struct File* open_file(const char* name) {
         return NULL;
     }
 
-    file->file_ptr = file;
+    file->file_ptr = _file;
     file->type = FILE;
     return file;
 }
@@ -63,7 +66,7 @@ off_t write_file(struct File* file, const void* buffer, off_t size) {
     }
 }
 
-void seek_file(struct File* file, off_t size) {
+int seek_file(struct File* file, off_t size) {
     switch (file->type) {
         case FILE:
             file_seek(file->file_ptr, size);
@@ -88,6 +91,7 @@ int close_file(struct File* file) {
     switch (file->type) {
         case FILE:
             file_close(file->file_ptr);
+            free(file);
             return 0;
 
         default:
@@ -96,15 +100,21 @@ int close_file(struct File* file) {
 }
 
 struct File* duplicate_file(struct File* file) {
-    struct File* new_file = calloc(1, sizeof(struct File));
-    new_file->type = file->type;
+    struct File* new_file;
     switch (file->type) {
         case FILE:
-            new_file->file_ptr = duplicate_file(file);
+            new_file = calloc(1, sizeof(struct File));
+            new_file->file_ptr = file_duplicate(file->file_ptr);
             break;
-
+        case STDIN:
+            new_file = &STDIN_FILE;
+            break;
+        case STDOUT:
+            new_file = &STDOUT_FILE;
+            break;
         default:
             break;
     }
+    new_file->type = file->type;
     return new_file;
 }

@@ -16,8 +16,8 @@
  *     @see
  * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
  */
-#include "filesys/file.h"
 #include "threads/synch.h"
+#include "userprog/file_abstract.h"
 #endif
 // ADD/write_handler
 
@@ -155,10 +155,10 @@ struct thread {
      * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
      */
 
-    struct file **fdt;
+    struct File **fdt;
     size_t fd_pg_cnt;
     size_t open_file_cnt;
-  
+
     // $feat/process-wait
     struct thread *parent;
     struct list childs;
@@ -233,5 +233,7 @@ void priority_update(void);
 //$feat/process-wait
 bool is_user_thread(void);
 // feat/process-wait
+
+int set_fd(struct File *file);
 
 #endif /* threads/thread.h */
