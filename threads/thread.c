@@ -602,6 +602,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     t->sibling_elem.prev = NULL;
     t->sibling_elem.next = NULL;
     sema_init(&t->wait_sema, 0);
+    sema_init(&t->fork_sema, 0);
     t->exit_status = -1;
     // feat/process-wait
 

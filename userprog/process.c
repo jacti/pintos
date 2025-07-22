@@ -131,7 +131,7 @@ tid_t process_fork(const char *name, struct intr_frame *if_) {
         return TID_ERROR;
     }
 
-    sema_down(&curr->wait_sema);
+    sema_down(&curr->fork_sema);
 
     return tid;
 }
@@ -249,7 +249,7 @@ static void __do_fork(void *aux) {
     process_init();
 
     free(fork_data);
-    sema_up(&(current->parent->wait_sema));
+    sema_up(&(current->parent->fork_sema));
 
     /* Finally, switch to the newly created process. */
     if (succ)
@@ -305,7 +305,7 @@ int process_wait(tid_t child_tid) {
     int child_exit_status = -1;
     struct thread *curr = thread_current();
     for (struct list_elem *e = list_begin(&curr->childs); e != list_end(&curr->childs);
-         e = list_next(&curr->childs)) {
+         e = list_next(e)) {
         struct thread *t = list_entry(e, struct thread, sibling_elem);
         if (t && t->tid == child_tid) {
             sema_down(&curr->wait_sema);
