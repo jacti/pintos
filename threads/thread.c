@@ -223,6 +223,9 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
     t->tf.cs = SEL_KCSEG;
     t->tf.eflags = FLAG_IF;
 
+    _set_fd(global_stdin, t);
+    _set_fd(global_stdout, t);
+
     /* Add to run queue. */
     thread_unblock(t);
 
@@ -600,11 +603,8 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     //$ADD/write_handler
 
 #ifdef USERPROG
-    // FIXME : fdt를 for 문으로 매크로 수만큼 null초기화 현재는 64개 크기 중 2개만 초기화
     t->fd_pg_cnt = 0;
-
-    _set_fd(global_stdin, t);
-    _set_fd(global_stdout, t);
+    t->open_file_cnt = 0;
 
     //$feat/process-wait
     t->parent = NULL;
@@ -892,26 +892,24 @@ void priority_update(void) {
 // test-temp/mlfqs
 
 static int _set_fd(struct file *file, struct thread *t) {
-    int i = 0;
-    for (; i < t->fd_pg_cnt << (PGBITS - 3); i++) {
-        if (t->fdt[i] == NULL) {
-            t->fdt[i] = file;
-            return i;
+    if (t->open_file_cnt < t->fd_pg_cnt << (PGBITS - 3)) {
+        for (int i = 0; i < t->fd_pg_cnt << (PGBITS - 3); i++) {
+            if (t->fdt[i] == NULL) {
+                t->fdt[i] = file;
+                return i;
+            }
         }
-    }
-
-    uint8_t *kpage = palloc_get_page(PAL_ZERO);
-    uintptr_t upage = FDT_BASE + (t->fd_pg_cnt << PGBITS);
-    if (kpage != NULL) {
-        if (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, true)) {
-            t->fd_pg_cnt++;
-            t->fdt[i] = file;
-            return i;
-        } else {
-            palloc_free_page(kpage);
+    } else {
+        uint64_t *kpage = palloc_get_multiple((PAL_ASSERT | PAL_ZERO), t->fd_pg_cnt + 1);
+        if (t->fd_pg_cnt != 0) {
+            memcpy(t->fdt, kpage, (t->fd_pg_cnt << PGBITS));
+            palloc_free_multiple(t->fdt, t->fd_pg_cnt);
         }
+        t->fd_pg_cnt++;
+        t->fdt = kpage;
+        t->fdt[t->open_file_cnt++] = file;
+        return t->open_file_cnt - 1;
     }
-    return -1;
 }
 
 int set_fd(struct file *file) {

@@ -157,6 +157,7 @@ struct thread {
      */
     struct file **fdt;
     size_t fd_pg_cnt;
+    size_t open_file_cnt;
     // $feat/process-wait
     struct thread *parent;
     struct list childs;

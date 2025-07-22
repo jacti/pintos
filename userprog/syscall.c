@@ -140,7 +140,7 @@ static bool put_user(uint8_t *udst, uint8_t byte) {
     int64_t error_code;
     __asm __volatile(
         "movabsq $done_put, %0\n"  // done_put 레이블의 주소를 error_code에 저장
-        "movb %b2, %1\n"           // byte를 *udst에 쓴다. 세그폴트 발생 시 이 부분 건너뜀.
+        "movb %b2, %1\n"  // byte를 *udst에 쓴다. 세그폴트 발생 시 이 부분 건너뜀.
         "done_put:\n"  // (페이지 폴트 핸들러가 error_code를 -1로 설정하고 여기에 점프하도록
                        // 수정되어야 함)
         : "=&a"(error_code), "=m"(*udst)
@@ -201,9 +201,9 @@ static bool is_user_accesable(void *start, size_t size, bool write) {
  * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
  */
 static struct file *get_file_from_fd(int fd) {
-    if (get_user(thread_current()->fdt[fd]) == (int64_t)-1) {
-        exit_handler(-1);
-    }
+    // if (get_user(thread_current()->fdt[fd]) == (int64_t)-1) {
+    //     exit_handler(-1);
+    // }
     return thread_current()->fdt[fd];
 }
 
