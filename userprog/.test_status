@@ -62,7 +62,7 @@ alarm-zero PASS
 open-boundary PASS
 create-null FAIL
 fork-recursive FAIL
-open-bad-ptr FAIL
+open-bad-ptr PASS
 write-normal FAIL
 bad-read FAIL
 multi-oom FAIL

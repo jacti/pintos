@@ -288,7 +288,7 @@ static int open_handler(const char *file_name) {
         }
         return set_fd(file);
     }
-    return -1;  // TODO: file 객체 반환 -> fd_table에 저장
+    exit_handler(-1);
 }
 
 /* 파일 크기 반환 */
