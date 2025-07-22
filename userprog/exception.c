@@ -149,10 +149,6 @@ static void page_fault(struct intr_frame *f) {
     //         user ? "user" : "kernel");
 
     // FIXME :  vm할떄는 고칠 것, userprog 할 때 MMU 활용하기 위해 임시로 만듦
-    if (!user && fault_addr < KERN_BASE) {
-        f->rip = f->R.rax;
-        f->R.rax = -1;
-    } else {
-        kill(f);
-    }
+    f->rip = f->R.rax;
+    f->R.rax = -1;
 }
