@@ -245,6 +245,18 @@ static void __do_fork(void *aux) {
      * TODO:       in include/filesys/file.h. Note that parent should not return
      * TODO:       from the fork() until this function successfully duplicates
      * TODO:       the resources of parent.*/
+    // 부모의 파일 디스크립터 테이블 복사
+    current->fd_pg_cnt = parent->fd_pg_cnt;
+    current->open_file_cnt = parent->open_file_cnt;
+
+    current->fdt = palloc_get_multiple(PAL_ZERO, current->fd_pg_cnt);
+    if (current->fdt == NULL) {
+        goto error;
+    }
+
+    for (int i = 0 ; i<???; i++) {
+        current->fdt[i] = file_duplicate(parent->fdt[i]);
+    }
 
     process_init();
 
@@ -311,6 +323,7 @@ int process_wait(tid_t child_tid) {
             sema_down(&curr->wait_sema);
             barrier();
             child_exit_status = t->exit_status;
+            list_remove(&t->sibling_elem);
             sema_up(&t->wait_sema);
             break;
         }

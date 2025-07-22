@@ -42,7 +42,7 @@ sm-seq-block FAIL
 multi-recurse FAIL
 alarm-priority PASS
 close-twice PASS
-args-none PASS
+args-none FAIL
 create-bad-ptr FAIL
 read-stdout PASS
 priority-fifo PASS
@@ -75,7 +75,7 @@ close-bad-fd PASS
 alarm-negative PASS
 multi-child-fd FAIL
 exit PASS
-write-bad-ptr FAIL
+write-bad-ptr PASS
 priority-donate-sema PASS
 lg-seq-block FAIL
 wait-simple FAIL

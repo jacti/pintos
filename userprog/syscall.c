@@ -228,7 +228,8 @@ static void halt_handler(void) {
 static void exit_handler(int status) {
     struct thread *cur = thread_current();
     cur->exit_status = status;
-    process_exit();
+    // process_exit();
+    thread_exit();
 }
 
 /**
