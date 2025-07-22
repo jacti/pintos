@@ -14,7 +14,9 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #ifdef USERPROG
-// #include "../include/threads/thread.h"
+struct file *global_stdin = 1;
+struct file *global_stdout = 2;
+
 #include "userprog/process.h"
 #endif
 
@@ -61,6 +63,8 @@ bool thread_mlfqs;
 //$Add/MLFQ_thread_elem
 static fixed_t load_avg; /** @brief 전역변수: 부하 평균량  */
 // Add/MLFQ_thread_elem
+
+static int _set_fd(struct file *file, struct thread *t);
 
 static void kernel_thread(thread_func *, void *aux);
 
@@ -212,6 +216,9 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
     t->tf.ss = SEL_KDSEG;
     t->tf.cs = SEL_KCSEG;
     t->tf.eflags = FLAG_IF;
+
+    _set_fd(global_stdin, t);
+    _set_fd(global_stdout, t);
 
     /* Add to run queue. */
     thread_unblock(t);
@@ -592,9 +599,9 @@ static void init_thread(struct thread *t, const char *name, int priority) {
  * @brief fd 0,1 은 표준 입출력을 써야하기에 나중에 NULL이면 리턴하는 식으로 하기 위해 정의
  */
 #ifdef USERPROG
-    // FIXME : fdt를 for 문으로 매크로 수만큼 null초기화 현재는 64개 크기 중 2개만 초기화
-    t->fdt[0] = NULL;
-    t->fdt[1] = NULL;
+
+    t->fd_pg_cnt = 0;
+    t->open_file_cnt = 0;
 
     //$feat/process-wait
     t->parent = NULL;
@@ -881,6 +888,31 @@ void priority_update(void) {
     intr_yield_on_return();
 }
 // test-temp/mlfqs
+
+static int _set_fd(struct file *file, struct thread *t) {
+    if (t->open_file_cnt < t->fd_pg_cnt << (PGBITS - 3)) {
+        for (int i = 0; i < t->fd_pg_cnt << (PGBITS - 3); i++) {
+            if (t->fdt[i] == NULL) {
+                t->fdt[i] = file;
+                return i;
+            }
+        }
+    } else {
+        uint64_t *kpage = palloc_get_multiple((PAL_ASSERT | PAL_ZERO), t->fd_pg_cnt + 1);
+        if (t->fd_pg_cnt != 0) {
+            memcpy(t->fdt, kpage, (t->fd_pg_cnt << PGBITS));
+            palloc_free_multiple(t->fdt, t->fd_pg_cnt);
+        }
+        t->fd_pg_cnt++;
+        t->fdt = kpage;
+        t->fdt[t->open_file_cnt++] = file;
+        return t->open_file_cnt - 1;
+    }
+}
+
+int set_fd(struct file *file) {
+    return _set_fd(file, thread_current());
+}
 
 /**
  * @brief 현재 스레드가 사용자 프로세스(유저 스레드)인지 확인한다.

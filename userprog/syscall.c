@@ -28,7 +28,7 @@ static int exec_handler(const char *file);
 static int wait_handler(pid_t pid);
 static bool create_handler(const char *file, unsigned initial_size);
 static bool remove_handler(const char *file);
-static int open_handler(const char *file);
+static int open_handler(const char *file_name);
 static int filesize_handler(int fd);
 static int read_handler(int fd, void *buffer, unsigned size);
 static int write_handler(int fd, const void *buffer, unsigned size);
@@ -200,6 +200,9 @@ static bool is_user_accesable(void *start, size_t size, bool write) {
  * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
  */
 static struct file *get_file_from_fd(int fd) {
+    // if (get_user(thread_current()->fdt[fd]) == (int64_t)-1) {
+    //     exit_handler(-1);
+    // }
     return thread_current()->fdt[fd];
 }
 
@@ -256,21 +259,47 @@ static bool create_handler(const char *file, unsigned initial_size) {
 
 /* 파일 삭제 */
 static bool remove_handler(const char *file) {
-    return false;  // TODO: filesys_remove 호출
+    if (is_user_accesable(file, strlen(file) + 1, write)) {
+        return filesys_remove(file);  // TODO: filesys_remove 호출
+    }
+    return false;
 }
 
 /* 파일 열기 */
-static int open_handler(const char *file) {
+static int open_handler(const char *file_name) {
+    if (is_user_accesable(file_name, strlen(file_name) + 1, false)) {
+        struct file *file = filesys_open(file_name);
+        return set_fd(file);
+    } else {
+        exit_handler(-1);
+    }
     return -1;  // TODO: file 객체 반환 -> fd_table에 저장
 }
 
 /* 파일 크기 반환 */
 static int filesize_handler(int fd) {
-    return 0;  // TODO: fd로 file 찾아서 길이 반환
+    struct file *get_file = get_file_from_fd(fd);
+    return file_length(get_file);
+    // TODO: fd로 file 찾아서 길이 반환
 }
 
 /* 파일 또는 STDIN에서 읽기 */
 static int read_handler(int fd, void *buffer, unsigned size) {
+    struct file *get_file = get_file_from_fd(fd);
+    if (is_user_accesable(buffer, size, true)) {
+        if (get_file == global_stdin) {
+            for (int i = 0; i < size; i++) {
+                char a = input_getc();
+                buffer = &a;
+                buffer++;
+            }
+        } else if (get_file == global_stdout) {
+            exit_handler(-1);
+        } else {
+            size = file_read(get_file, buffer, size);
+        }
+        return size;
+    }
     return -1;  // TODO: 유저 주소 검증 -> file_read
 }
 
@@ -298,16 +327,14 @@ static int write_handler(int fd, const void *buffer,
                          unsigned size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
 
     if (is_user_accesable(buffer, size, false)) {
-        if (fd == 0) {
+        struct file *get_file = get_file_from_fd(fd);
+        if (get_file == global_stdin) {
             exit_handler(-1);
-        } else if (fd == 1) {
+        } else if (get_file == global_stdout) {
             putbuf(buffer, size);
-        } else if (fd > 2) {
+        } else {
             // FIXME: 락이랑 접근해서 작성하는거 구현할 것
-            // 수정필요 acquire_console();
-            struct file *get_file = get_file_from_fd(fd);
             file_write(get_file, buffer, size);
-            // 수정필요  release_console();
         }
         return size;
     } else {
@@ -320,14 +347,27 @@ static int write_handler(int fd, const void *buffer,
 /* 파일 커서 위치 이동 */
 static void seek_handler(int fd, unsigned position) {
     // TODO: file_seek 호출
+    struct file *get_file = get_file_from_fd(fd);
+    file_seek(get_file, position);
 }
 
 /* 파일 커서 위치 반환 */
 static unsigned tell_handler(int fd) {
-    return 0;  // TODO: file_tell 호출
+    struct file *f = get_file_from_fd(fd);
+    if (f == global_stdin || f == global_stdout) {
+        exit_handler(-1);
+    } else {
+        return file_tell(f);
+    }
 }
 
 /* 파일 닫기 */
 static void close_handler(int fd) {
-    // TODO: file_close -> fd_table에서 제거
+    struct file *f = get_file_from_fd(fd);
+    if (f == global_stdin || f == global_stdout) {
+        exit_handler(-1);
+    } else {
+        file_close(f);
+        thread_current()->fdt[fd] = NULL;
+    }
 }
