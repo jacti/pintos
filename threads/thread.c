@@ -14,8 +14,8 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #ifdef USERPROG
-extern struct file *global_stdin = 1;
-extern struct file *global_stdout= 2;
+struct file *global_stdin = 1;
+struct file *global_stdout = 2;
 
 // #include "../include/threads/thread.h"
 // #include "thread.h"
@@ -98,6 +98,10 @@ static void load_avg_update(void);
 // Because the gdt will be setup after the thread_init, we should
 // setup temporal gdt first.
 static uint64_t gdt[3] = {0, 0x00af9a000000ffff, 0x00cf92000000ffff};
+
+bool is_user_thread(void) {
+    return thread_current()->pml4 != NULL;
+}
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
