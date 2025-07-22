@@ -8,8 +8,8 @@ priority-donate-one PASS
 create-normal FAIL
 priority-donate-lower PASS
 open-twice FAIL
-exec-missing FAIL
 exec-arg FAIL
+exec-missing FAIL
 read-bad-ptr FAIL
 create-long PASS
 priority-preempt PASS
@@ -33,8 +33,8 @@ read-stdout PASS
 priority-fifo PASS
 wait-bad-pid PASS
 exec-read FAIL
-read-boundary FAIL
 priority-sema PASS
+read-boundary FAIL
 wait-twice FAIL
 exec-boundary FAIL
 close-normal FAIL
