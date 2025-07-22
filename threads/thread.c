@@ -894,6 +894,7 @@ static int _set_fd(struct file *file, struct thread *t) {
         for (int i = 0; i < t->fd_pg_cnt << (PGBITS - 3); i++) {
             if (t->fdt[i] == NULL) {
                 t->fdt[i] = file;
+                t->open_file_cnt++;
                 return i;
             }
         }

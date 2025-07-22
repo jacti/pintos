@@ -222,7 +222,7 @@ static void __do_fork(void *aux) {
     /* 1. Read the cpu context to local stack. */
     memcpy(&if_, parent_if, sizeof(struct intr_frame));
 
-    if_.R.rax = 0; // 자식 rax 초기화
+    if_.R.rax = 0;  // 자식 rax 초기화
 
     /* 2. Duplicate PT */
     current->pml4 = pml4_create();
@@ -247,15 +247,27 @@ static void __do_fork(void *aux) {
      * TODO:       the resources of parent.*/
     // 부모의 파일 디스크립터 테이블 복사
     current->fd_pg_cnt = parent->fd_pg_cnt;
-    current->open_file_cnt = parent->open_file_cnt;
+    current->open_file_cnt = 0;
 
-    current->fdt = palloc_get_multiple(PAL_ZERO, current->fd_pg_cnt);
-    if (current->fdt == NULL) {
-        goto error;
-    }
+    ASSERT(current->fdt != NULL);
+    if (current->fd_pg_cnt != 0) {
+        palloc_free_page(current->fdt);
+        current->fdt = palloc_get_multiple(PAL_ZERO, current->fd_pg_cnt);
+        if (current->fdt == NULL) {
+            goto error;
+        }
 
-    for (int i = 0 ; i<???; i++) {
-        current->fdt[i] = file_duplicate(parent->fdt[i]);
+        for (int i = 0; current->open_file_cnt < parent->open_file_cnt; i++) {
+            if (parent->fdt[i] != NULL) {
+                if (parent->fdt[i] == global_stdin || parent->fdt[i] == global_stdout) {
+                    current->fdt[i] = parent->fdt[i];
+                } else {
+                    current->fdt[i] = file_duplicate(parent->fdt[i]);
+                }
+
+                current->open_file_cnt++;
+            }
+        }
     }
 
     process_init();

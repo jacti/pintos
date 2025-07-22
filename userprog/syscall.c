@@ -4,6 +4,7 @@
 #include <string.h>
 #include <syscall-nr.h>
 
+#include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "intrinsic.h"
 #include "threads/flags.h"
@@ -302,8 +303,10 @@ static int filesize_handler(int fd) {
 /* 파일 또는 STDIN에서 읽기 */
 static int read_handler(int fd, void *buffer, unsigned size) {
     struct file *get_file = get_file_from_fd(fd);
-    if (is_user_accesable(buffer, size, P_USER)) {
-        if (get_file == global_stdin) {
+    if (is_user_accesable(buffer, size, P_USER | P_WRITE)) {
+        if (get_file == NULL) {
+            exit_handler(-1);
+        } else if (get_file == global_stdin) {
             for (int i = 0; i < size; i++) {
                 char a = input_getc();
                 buffer = &a;
@@ -316,7 +319,7 @@ static int read_handler(int fd, void *buffer, unsigned size) {
         }
         return size;
     }
-    return -1;  // TODO: 유저 주소 검증 -> file_read
+    exit_handler(-1);
 }
 
 /* 파일 또는 STDOUT으로 쓰기 */
