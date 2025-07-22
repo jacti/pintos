@@ -602,6 +602,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     t->sibling_elem.prev = NULL;
     t->sibling_elem.next = NULL;
     sema_init(&t->wait_sema, 0);
+    sema_init(&t->fork_sema, 0);
     t->exit_status = -1;
     // feat/process-wait
 
@@ -881,6 +882,14 @@ void priority_update(void) {
 }
 // test-temp/mlfqs
 
+/**
+ * @brief 현재 스레드가 사용자 프로세스(유저 스레드)인지 확인한다.
+ *
+ * @return true 현재 스레드의 PML4가 NULL이 아니면(유저 프로세스)
+ *         false 그렇지 않으면(커널 스레드)
+ *
+ * @branch feat/process-wait
+ */
 bool is_user_thread(void) {
     return (thread_current()->pml4 != NULL);
 }

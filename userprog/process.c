@@ -131,7 +131,7 @@ tid_t process_fork(const char *name, struct intr_frame *if_) {
         return TID_ERROR;
     }
 
-    sema_down(&curr->wait_sema);
+    sema_down(&curr->fork_sema);
 
     return tid;
 }
@@ -147,7 +147,7 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
     bool writable;
 
     /* 1. If the parent_page is kernel page, then return immediately. */
-    if (parent->pml4 == NULL) {
+    if (!is_user_vaddr(va)) {
         return true;
     }
 
@@ -156,7 +156,9 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
 
     /* 3. Allocate new PAL_USER page for the child and set result to
      *    NEWPAGE. */
-    newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    if (newpage = pml4_get_page(current->pml4, va) == NULL) {
+        newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    }
     if (newpage == NULL) {
         return false;
     }
@@ -164,8 +166,9 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
     /* 4. Duplicate parent's page to the new page and
      *    check whether parent's page is writable or not (set WRITABLE
      *    according to the result). */
-    memcpy(newpage, parent_page, PGSIZE);
     writable = is_writable(pte);
+    pml4_set_page(current->pml4, (uint8_t *)pg_round_down(va), newpage, writable);
+    memcpy(newpage, parent_page, PGSIZE);
 
     /* 5. Add new page to child's page table at address VA with WRITABLE
      *    permission. */
@@ -219,6 +222,8 @@ static void __do_fork(void *aux) {
     /* 1. Read the cpu context to local stack. */
     memcpy(&if_, parent_if, sizeof(struct intr_frame));
 
+    if_.R.rax = 0; // 자식 rax 초기화
+
     /* 2. Duplicate PT */
     current->pml4 = pml4_create();
     if (current->pml4 == NULL)
@@ -244,7 +249,7 @@ static void __do_fork(void *aux) {
     process_init();
 
     free(fork_data);
-    sema_up(&(current->parent->wait_sema));
+    sema_up(&(current->parent->fork_sema));
 
     /* Finally, switch to the newly created process. */
     if (succ)
@@ -300,7 +305,7 @@ int process_wait(tid_t child_tid) {
     int child_exit_status = -1;
     struct thread *curr = thread_current();
     for (struct list_elem *e = list_begin(&curr->childs); e != list_end(&curr->childs);
-         e = list_next(&curr->childs)) {
+         e = list_next(e)) {
         struct thread *t = list_entry(e, struct thread, sibling_elem);
         if (t && t->tid == child_tid) {
             sema_down(&curr->wait_sema);
@@ -324,6 +329,7 @@ void process_exit(void) {
         sema_down(&cur->wait_sema);
     }
     process_cleanup();
+    thread_exit();
 }
 
 /* Free the current process's resources. */
