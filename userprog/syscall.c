@@ -173,7 +173,7 @@ static bool put_user(uint8_t *udst, uint8_t byte) {
 static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags flag) {
     if (flag && IS_STR) {
         if (get_user((uint8_t *)start) == (int64_t)-1) {
-            return -1;
+            return false;
         }
         size = strlen(start) + 1;
     }
