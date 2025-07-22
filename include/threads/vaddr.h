@@ -37,6 +37,8 @@
 /* User stack start */
 #define USER_STACK 0x47480000
 
+#define FDT_BASE 0x7D0000000000
+
 /* Returns true if VADDR is a user virtual address. */
 #define is_user_vaddr(vaddr) (!is_kernel_vaddr((vaddr)))
 

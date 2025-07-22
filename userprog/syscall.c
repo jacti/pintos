@@ -1,9 +1,9 @@
 #include "userprog/syscall.h"
 
+#include <filesys/filesys.h>
 #include <stdio.h>
 #include <string.h>
 #include <syscall-nr.h>
-#include <filesys/filesys.h>
 
 #include "include/lib/user/syscall.h"
 #include "intrinsic.h"
@@ -14,8 +14,6 @@
 #include "user/syscall.h"
 #include "userprog/gdt.h"
 #include "userprog/process.h"
-
-enum std {C_STDIN,C_STDOUT,C_STDERR};
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -254,15 +252,16 @@ static int wait_handler(pid_t pid) {
 
 /* 파일 생성 */
 static bool create_handler(const char *file, unsigned initial_size) {
-    if(is_user_accesable(file,strlen(file)+1,false))
-    {return filesys_create(file,(off_t)initial_size);}
+    if (is_user_accesable(file, strlen(file) + 1, false)) {
+        return filesys_create(file, (off_t)initial_size);
+    }
     exit_handler(-1);
     return false;  // TODO: filesys_create 호출
 }
 
 /* 파일 삭제 */
 static bool remove_handler(const char *file) {
-    if()
+    // if ()
     return false;  // TODO: filesys_remove 호출
 }
 
@@ -338,4 +337,3 @@ static unsigned tell_handler(int fd) {
 static void close_handler(int fd) {
     // TODO: file_close -> fd_table에서 제거
 }
-
