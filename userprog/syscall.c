@@ -4,7 +4,7 @@
 #include <string.h>
 #include <syscall-nr.h>
 
-#include "include/lib/user/syscall.h"
+#include "filesys/filesys.h"
 #include "intrinsic.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
@@ -214,9 +214,9 @@ static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags
  * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
  */
 static struct file *get_file_from_fd(int fd) {
-    // if (get_user(thread_current()->fdt[fd]) == (int64_t)-1) {
-    //     exit_handler(-1);
-    // }
+    if (get_user((thread_current()->fdt + fd)) == (int64_t)-1) {
+        return NULL;
+    }
     return thread_current()->fdt[fd];
 }
 
@@ -245,7 +245,7 @@ static void exit_handler(int status) {
  * @see process_fork()
  */
 static pid_t fork_handler(const char *thread_name, struct intr_frame *f) {
-    if (is_user_accesable(thread_name, 0, P_USER || IS_STR)) {
+    if (is_user_accesable(thread_name, 0, P_USER | IS_STR)) {
         return process_fork(thread_name, f);
     } else {
         exit_handler(-1);
@@ -273,7 +273,7 @@ static bool create_handler(const char *file, unsigned initial_size) {
 
 /* 파일 삭제 */
 static bool remove_handler(const char *file) {
-    if (is_user_accesable(file, 0, P_KERNEL || P_WRITE || IS_STR)) {
+    if (is_user_accesable(file, 0, P_KERNEL | P_WRITE | IS_STR)) {
         return filesys_remove(file);  // TODO: filesys_remove 호출
     }
     return false;
@@ -281,7 +281,7 @@ static bool remove_handler(const char *file) {
 
 /* 파일 열기 */
 static int open_handler(const char *file_name) {
-    if (file_name && is_user_accesable(file_name, 0, P_USER || IS_STR)) {
+    if (file_name && is_user_accesable(file_name, 0, P_USER | IS_STR)) {
         struct file *file = filesys_open(file_name);
         if (file == NULL) {
             return -1;
