@@ -29,7 +29,7 @@ static int exec_handler(const char *file);
 static int wait_handler(pid_t pid);
 static bool create_handler(const char *file, unsigned initial_size);
 static bool remove_handler(const char *file);
-static int open_handler(const char *file);
+static int open_handler(const char *file_name);
 static int filesize_handler(int fd);
 static int read_handler(int fd, void *buffer, unsigned size);
 static int write_handler(int fd, const void *buffer, unsigned size);
@@ -140,7 +140,7 @@ static bool put_user(uint8_t *udst, uint8_t byte) {
     int64_t error_code;
     __asm __volatile(
         "movabsq $done_put, %0\n"  // done_put 레이블의 주소를 error_code에 저장
-        "movb %b2, %1\n"  // byte를 *udst에 쓴다. 세그폴트 발생 시 이 부분 건너뜀.
+        "movb %b2, %1\n"           // byte를 *udst에 쓴다. 세그폴트 발생 시 이 부분 건너뜀.
         "done_put:\n"  // (페이지 폴트 핸들러가 error_code를 -1로 설정하고 여기에 점프하도록
                        // 수정되어야 함)
         : "=&a"(error_code), "=m"(*udst)
@@ -264,22 +264,47 @@ static bool create_handler(const char *file, unsigned initial_size) {
 
 /* 파일 삭제 */
 static bool remove_handler(const char *file) {
-    // if ()
-    return false;  // TODO: filesys_remove 호출
+    if (is_user_accesable(file, strlen(file) + 1, write)) {
+        return filesys_remove(file);  // TODO: filesys_remove 호출
+    }
+    return false;
 }
 
 /* 파일 열기 */
-static int open_handler(const char *file) {
+static int open_handler(const char *file_name) {
+    if (is_user_accesable(file_name, strlen(file_name) + 1, false)) {
+        struct file *file = filesys_open(file_name);
+        return set_fd(file);
+    } else {
+        exit_handler(-1);
+    }
     return -1;  // TODO: file 객체 반환 -> fd_table에 저장
 }
 
 /* 파일 크기 반환 */
 static int filesize_handler(int fd) {
-    return 0;  // TODO: fd로 file 찾아서 길이 반환
+    struct file *get_file = get_file_from_fd(fd);
+    return file_length(get_file);
+    // TODO: fd로 file 찾아서 길이 반환
 }
 
 /* 파일 또는 STDIN에서 읽기 */
 static int read_handler(int fd, void *buffer, unsigned size) {
+    struct file *get_file = get_file_from_fd(fd);
+    if (is_user_accesable(buffer, size, true)) {
+        if (get_file == global_stdin) {
+            for (int i = 0; i < size; i++) {
+                char a = input_getc();
+                buffer = &a;
+                buffer++;
+            }
+        } else if (get_file == global_stdout) {
+            exit_handler(-1);
+        } else {
+            size = file_read(get_file, buffer, size);
+        }
+        return size;
+    }
     return -1;  // TODO: 유저 주소 검증 -> file_read
 }
 
@@ -327,6 +352,8 @@ static int write_handler(int fd, const void *buffer,
 /* 파일 커서 위치 이동 */
 static void seek_handler(int fd, unsigned position) {
     // TODO: file_seek 호출
+    struct file *get_file = get_file_from_fd(fd);
+    file_seek(get_file, position);
 }
 
 /* 파일 커서 위치 반환 */
@@ -335,7 +362,7 @@ static unsigned tell_handler(int fd) {
     if (f == global_stdin || f == global_stdout) {
         exit_handler(-1);
     } else {
-        file_tell(f);
+        return file_tell(f);
     }
 }
 
