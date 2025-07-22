@@ -201,6 +201,9 @@ static bool is_user_accesable(void *start, size_t size, bool write) {
  * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
  */
 static struct file *get_file_from_fd(int fd) {
+    if (get_user(thread_current()->fdt[fd]) == (int64_t)-1) {
+        exit_handler(-1);
+    }
     return thread_current()->fdt[fd];
 }
 
@@ -328,10 +331,21 @@ static void seek_handler(int fd, unsigned position) {
 
 /* 파일 커서 위치 반환 */
 static unsigned tell_handler(int fd) {
-    return 0;  // TODO: file_tell 호출
+    struct file *f = get_file_from_fd(fd);
+    if (f == global_stdin || f == global_stdout) {
+        exit_handler(-1);
+    } else {
+        file_tell(f);
+    }
 }
 
 /* 파일 닫기 */
 static void close_handler(int fd) {
-    // TODO: file_close -> fd_table에서 제거
+    struct file *f = get_file_from_fd(fd);
+    if (f == global_stdin || f == global_stdout) {
+        exit_handler(-1);
+    } else {
+        file_close(f);
+        thread_current()->fdt[fd] = NULL;
+    }
 }
