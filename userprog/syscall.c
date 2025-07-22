@@ -13,7 +13,7 @@
 #include "threads/thread.h"
 #include "user/syscall.h"
 #include "userprog/gdt.h"
-#include "include/lib/user/syscall.h"
+#include "userprog/process.h"
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -212,7 +212,7 @@ static void halt_handler(void) {
 static void exit_handler(int status) {
     struct thread *cur = thread_current();
     cur->exit_status = status;
-    thread_exit();
+    process_exit();
 }
 
 /**
@@ -229,32 +229,25 @@ static void exit_handler(int status) {
  * @see process_fork()
  */
 static pid_t fork_handler(const char *thread_name, struct intr_frame *f) {
-    // 부모의 메모리와 상태를 복사해 자식 생성
-    return process_fork(thread_name, f);
+    if (is_user_accesable(thread_name, strlen(thread_name) + 1, false)) {
+        return process_fork(thread_name, f);
+    } else {
+        exit_handler(-1);
+    }
 }
 
 /* 사용자 프로그램 실행 */
 static int exec_handler(const char *file) {
-    // 유저 주소 확인 -> 문자열 복사 -> process_exec 호출
-    return -1;  // TODO: 구현 필요
+    if (is_user_accesable(file, strlen(file) + 1, false)) {
+        return process_exec(file);
+    } else {
+        exit_handler(-1);
+    }
 }
 
 /* 자식 프로세스가 종료될 때까지 대기 */
 static int wait_handler(pid_t pid) {
-    int child_exit_status = -1;
-    struct thread *curr = thread_current();
-    for (struct list_elem *e = list_begin(&curr->childs); e != list_end(&curr->childs);
-         e = list_next(&curr->childs)) {
-        struct thread *t = list_entry(e, struct thread, sibling_elem);
-        if (t && t->tid == pid) {
-            sema_down(&curr->wait_sema);
-            barrier();
-            child_exit_status = t->exit_status;
-            sema_up(&t->wait_sema);
-            break;
-        }
-    }
-    return child_exit_status;
+    return process_wait(pid);
 }
 
 /* 파일 생성 */

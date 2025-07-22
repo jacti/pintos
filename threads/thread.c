@@ -78,12 +78,6 @@ static size_t get_count_threads(void);
 static void load_avg_update(void);
 // test-temp/mlfqs-iizxcv
 
-//$feat/process-wait
-inline bool is_user_thread(void) {
-    return (thread_current()->pml4 != NULL);
-}
-// feat/process-wait
-
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -596,13 +590,9 @@ static void init_thread(struct thread *t, const char *name, int priority) {
 //$ADD/write_handler
 
 #ifdef USERPROG
-    //$Add/file_manage
-    /** fd 0,1,2 은 stdin.h 에 있는 표준 입출력으로 초기화 */
-    t->fdt[0] = stdin;
-    t->fdt[1] = stdout;
-    t->fdt[2] = stderr;
-    for(int i=FD_MIN;i<=FD_MAX;i++){t->fdt[i]=NULL;}
-    //$Add/file_manage 
+    // FIXME : fdt를 for 문으로 매크로 수만큼 null초기화 현재는 64개 크기 중 2개만 초기화
+    t->fdt[0] = NULL;
+    t->fdt[1] = NULL;
   
     //$feat/process-wait
     t->parent = NULL;
@@ -888,4 +878,3 @@ void priority_update(void) {
     intr_yield_on_return();
 }
 // test-temp/mlfqs
-

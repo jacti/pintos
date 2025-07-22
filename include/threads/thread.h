@@ -6,7 +6,7 @@
 
 #include "fixed_point.h"  // $Add/fixed_point_h
 #include "threads/interrupt.h"
-#include "threads/synch.h" // $ feat/fork_handler
+#include "threads/synch.h"  // $ feat/fork_handler
 
 //$ADD/write_handler
 #ifdef USERPROG
@@ -229,6 +229,8 @@ void mlfq_run_for_sec(void);
 void priority_update(void);
 // test-temp/mlfqs
 
-inline bool is_user_thread(void);
+//$feat/process-wait
+bool is_user_thread(void);
+// feat/process-wait
 
 #endif /* threads/thread.h */
