@@ -12,6 +12,7 @@
 #include "filesys/filesys.h"
 #include "include/lib/user/syscall.h"
 #include "intrinsic.h"
+#include "lib/user/syscall.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
@@ -36,11 +37,17 @@ static uint64_t *pop_stack(size_t size, struct intr_frame *if_);
 /**
  * @brief fork 작업에 필요한 데이터를 전달하기 위한 구조체
  * @branch feat/fork_handler
- * @details 부모 프로세스의 정보와 인터럽트 프레임을 자식 프로세스 생성 함수에 전달하기 위해 사용됩니다.
+ * @details 부모 프로세스의 정보와 인터럽트 프레임을 자식 프로세스 생성 함수에 전달하기 위해
+ * 사용됩니다.
  */
 struct fork_data {
     struct thread *parent;        /**< 부모 스레드 포인터 */
     struct intr_frame *parent_if; /**< 부모의 인터럽트 프레임 포인터 */
+};
+
+struct init_data {
+    struct thread *parent;
+    const char *file_name;
 };
 
 /* General process initializer for initd and other process. */
@@ -56,6 +63,8 @@ static void process_init(void) {
 tid_t process_create_initd(const char *file_name) {
     char *fn_copy;
     tid_t tid;
+    struct init_data init_data;
+    struct thread *t = thread_current();
 
     /* Make a copy of FILE_NAME.
      * Otherwise there's a race between the caller and load(). */
@@ -63,25 +72,28 @@ tid_t process_create_initd(const char *file_name) {
     if (fn_copy == NULL)
         return TID_ERROR;
     strlcpy(fn_copy, file_name, PGSIZE);
-
+    init_data.file_name = fn_copy;
+    init_data.parent = t;
     /* Create a new thread to execute FILE_NAME. */
-    tid = thread_create(file_name, PRI_DEFAULT, initd, fn_copy);
+    tid = thread_create(file_name, PRI_DEFAULT, initd, &init_data);
+    sema_down(&t->wait_sema);
     if (tid == TID_ERROR)
         palloc_free_page(fn_copy);
-    else {
-    }
     return tid;
 }
 
 /* A thread function that launches first user process. */
-static void initd(void *f_name) {
+static void initd(void *init_data_) {
 #ifdef VM
     supplemental_page_table_init(&thread_current()->spt);
 #endif
-
     process_init();
-
-    if (process_exec(f_name) < 0)
+    struct init_data *init_data = (struct init_data *)init_data_;
+    struct thread *t = thread_current();
+    t->parent = init_data->parent;
+    list_push_back(&t->parent->childs, &t->sibling_elem);
+    sema_up(&t->parent->wait_sema);
+    if (process_exec(init_data->file_name) < 0)
         PANIC("Fail to launch initd\n");
     NOT_REACHED();
 }
@@ -134,22 +146,33 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
     void *newpage;
     bool writable;
 
-    /* 1. TODO: If the parent_page is kernel page, then return immediately. */
+    /* 1. If the parent_page is kernel page, then return immediately. */
+    if (parent->pml4 == NULL) {
+        return true;
+    }
 
     /* 2. Resolve VA from the parent's page map level 4. */
     parent_page = pml4_get_page(parent->pml4, va);
 
-    /* 3. TODO: Allocate new PAL_USER page for the child and set result to
-     *    TODO: NEWPAGE. */
+    /* 3. Allocate new PAL_USER page for the child and set result to
+     *    NEWPAGE. */
+    newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    if (newpage == NULL) {
+        return false;
+    }
 
-    /* 4. TODO: Duplicate parent's page to the new page and
-     *    TODO: check whether parent's page is writable or not (set WRITABLE
-     *    TODO: according to the result). */
+    /* 4. Duplicate parent's page to the new page and
+     *    check whether parent's page is writable or not (set WRITABLE
+     *    according to the result). */
+    memcpy(newpage, parent_page, PGSIZE);
+    writable = is_writable(pte);
 
     /* 5. Add new page to child's page table at address VA with WRITABLE
      *    permission. */
     if (!pml4_set_page(current->pml4, va, newpage, writable)) {
-        /* 6. TODO: if fail to insert page, do error handling. */
+        /* 6. if fail to insert page, do error handling. */
+        palloc_free_page(newpage);
+        return false;
     }
     return true;
 }
@@ -208,7 +231,7 @@ static void __do_fork(void *aux) {
     if (!supplemental_page_table_copy(&current->spt, &parent->spt))
         goto error;
 #else
-    if (!pml4_for_each(parent->pml4, duplicate_pte, parent))
+    if (parent->pml4 && !pml4_for_each(parent->pml4, duplicate_pte, parent))
         goto error;
 #endif
 
@@ -222,7 +245,7 @@ static void __do_fork(void *aux) {
 
     free(fork_data);
     sema_up(&(current->parent->wait_sema));
-    
+
     /* Finally, switch to the newly created process. */
     if (succ)
         do_iret(&if_);
@@ -273,27 +296,33 @@ int process_exec(void *f_name) {
  *
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
-int process_wait(tid_t child_tid UNUSED) {
-//     return wait(child_tid);
-    /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-     * XXX:       to add infinite loop here before
-     * XXX:       implementing the process_wait. */
-    // for (;;) {
-    //     barrier();
-    // }
-    thread_sleep(100);
-    return -1;
+int process_wait(tid_t child_tid) {
+    int child_exit_status = -1;
+    struct thread *curr = thread_current();
+    for (struct list_elem *e = list_begin(&curr->childs); e != list_end(&curr->childs);
+         e = list_next(&curr->childs)) {
+        struct thread *t = list_entry(e, struct thread, sibling_elem);
+        if (t && t->tid == child_tid) {
+            sema_down(&curr->wait_sema);
+            barrier();
+            child_exit_status = t->exit_status;
+            sema_up(&t->wait_sema);
+            break;
+        }
+    }
+    return child_exit_status;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
     struct thread *cur = thread_current();
     if (cur->parent != NULL) {
+        if (is_user_thread()) {
+            printf("%s: exit(%d)\n", cur->name, cur->exit_status);
+        }
         sema_up(&cur->parent->wait_sema);
         sema_down(&cur->wait_sema);
     }
-    if (is_user_thread())
-        printf("%s: exit(%d)\n", cur->name, cur->exit_status);
     process_cleanup();
 }
 
