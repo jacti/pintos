@@ -17,8 +17,6 @@
 struct file *global_stdin = 1;
 struct file *global_stdout = 2;
 
-// #include "../include/threads/thread.h"
-// #include "thread.h"
 #include "userprog/process.h"
 #endif
 
@@ -98,10 +96,6 @@ static void load_avg_update(void);
 // Because the gdt will be setup after the thread_init, we should
 // setup temporal gdt first.
 static uint64_t gdt[3] = {0, 0x00af9a000000ffff, 0x00cf92000000ffff};
-
-bool is_user_thread(void) {
-    return thread_current()->pml4 != NULL;
-}
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -600,9 +594,12 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     if (thread_mlfqs) {
         t->priority = calaculate_priority(t->recent_cpu, t->nice);
     }
-    //$ADD/write_handler
-
+//$ADD/write_handler
+/**
+ * @brief fd 0,1 은 표준 입출력을 써야하기에 나중에 NULL이면 리턴하는 식으로 하기 위해 정의
+ */
 #ifdef USERPROG
+
     t->fd_pg_cnt = 0;
     t->open_file_cnt = 0;
 
@@ -612,6 +609,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     t->sibling_elem.prev = NULL;
     t->sibling_elem.next = NULL;
     sema_init(&t->wait_sema, 0);
+    sema_init(&t->fork_sema, 0);
     t->exit_status = -1;
     // feat/process-wait
 
@@ -914,4 +912,16 @@ static int _set_fd(struct file *file, struct thread *t) {
 
 int set_fd(struct file *file) {
     return _set_fd(file, thread_current());
+}
+
+/**
+ * @brief 현재 스레드가 사용자 프로세스(유저 스레드)인지 확인한다.
+ *
+ * @return true 현재 스레드의 PML4가 NULL이 아니면(유저 프로세스)
+ *         false 그렇지 않으면(커널 스레드)
+ *
+ * @branch feat/process-wait
+ */
+bool is_user_thread(void) {
+    return (thread_current()->pml4 != NULL);
 }
