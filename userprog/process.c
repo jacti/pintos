@@ -147,7 +147,7 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
     bool writable;
 
     /* 1. If the parent_page is kernel page, then return immediately. */
-    if (parent->pml4 == NULL) {
+    if (!is_user_vaddr(va)) {
         return true;
     }
 
@@ -221,6 +221,8 @@ static void __do_fork(void *aux) {
 
     /* 1. Read the cpu context to local stack. */
     memcpy(&if_, parent_if, sizeof(struct intr_frame));
+
+    if_.R.rax = 0; // 자식 rax 초기화
 
     /* 2. Duplicate PT */
     current->pml4 = pml4_create();
