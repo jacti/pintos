@@ -14,8 +14,11 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #ifdef USERPROG
+extern struct file *global_stdin = 1;
+extern struct file *global_stdout= 2;
+
 // #include "../include/threads/thread.h"
-#include "thread.h"
+// #include "thread.h"
 #include "userprog/process.h"
 #endif
 
@@ -62,6 +65,8 @@ bool thread_mlfqs;
 //$Add/MLFQ_thread_elem
 static fixed_t load_avg; /** @brief 전역변수: 부하 평균량  */
 // Add/MLFQ_thread_elem
+
+static int _set_fd(struct file *file, struct thread *t);
 
 static void kernel_thread(thread_func *, void *aux);
 
@@ -593,8 +598,9 @@ static void init_thread(struct thread *t, const char *name, int priority) {
 #ifdef USERPROG
     // FIXME : fdt를 for 문으로 매크로 수만큼 null초기화 현재는 64개 크기 중 2개만 초기화
     t->fd_pg_cnt = 0;
-    _set_fd(stdin, t);
-    _set_fd(stdout, t);
+
+    _set_fd(global_stdin, t);
+    _set_fd(global_stdout, t);
 
     //$feat/process-wait
     t->parent = NULL;
