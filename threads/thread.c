@@ -594,13 +594,15 @@ static void init_thread(struct thread *t, const char *name, int priority) {
         t->priority = calaculate_priority(t->recent_cpu, t->nice);
     }
 //$ADD/write_handler
-/**
- * @brief fd 0,1 은 표준 입출력을 써야하기에 나중에 NULL이면 리턴하는 식으로 하기 위해 정의
- */
+
 #ifdef USERPROG
-    // FIXME : fdt를 for 문으로 매크로 수만큼 null초기화 현재는 64개 크기 중 2개만 초기화
-    t->fdt[0] = NULL;
-    t->fdt[1] = NULL;
+    //$Add/file_manage
+    /** fd 0,1,2 은 stdin.h 에 있는 표준 입출력으로 초기화 */
+    t->fdt[0] = stdin;
+    t->fdt[1] = stdout;
+    t->fdt[2] = stderr;
+    for(int i=FD_MIN;i<=FD_MAX;i++){t->fdt[i]=NULL;}
+    //$Add/file_manage 
   
     //$feat/process-wait
     t->parent = NULL;
@@ -886,3 +888,4 @@ void priority_update(void) {
     intr_yield_on_return();
 }
 // test-temp/mlfqs
+

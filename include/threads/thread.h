@@ -1,6 +1,5 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
-
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
@@ -42,6 +41,11 @@ typedef int tid_t;
 #define PRI_MIN 0      /* Lowest priority. */
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63     /* Highest priority. */
+#define FD_MIN 3 /**/
+#define FD_MAX 63 /**/
+
+
+
 
 /* A kernel thread or user process.
  *
@@ -155,7 +159,6 @@ struct thread {
      * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
      */
     struct file *fdt[64];  //$Add/write_handler
-
     // $feat/process-wait
     struct thread *parent;
     struct list childs;

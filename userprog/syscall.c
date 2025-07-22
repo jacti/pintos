@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <syscall-nr.h>
+#include <filesys.h>
 
 #include "include/lib/user/syscall.h"
 #include "intrinsic.h"
@@ -258,6 +259,9 @@ static int wait_handler(pid_t pid) {
 
 /* 파일 생성 */
 static bool create_handler(const char *file, unsigned initial_size) {
+    if(is_user_accesable(file,strlen(file)+1,false))
+    {return filesys_create(file,(off_t)initial_size);}
+    exit_handler(-1);
     return false;  // TODO: filesys_create 호출
 }
 
