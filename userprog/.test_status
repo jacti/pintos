@@ -27,7 +27,7 @@ open-empty PASS
 open-null PASS
 alarm-priority PASS
 close-twice FAIL
-args-none PASS
+args-none FAIL
 create-bad-ptr FAIL
 read-stdout PASS
 priority-fifo PASS

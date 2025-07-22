@@ -15,6 +15,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 // #include "../include/threads/thread.h"
+#include "thread.h"
 #include "userprog/process.h"
 #endif
 
@@ -587,14 +588,13 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     if (thread_mlfqs) {
         t->priority = calaculate_priority(t->recent_cpu, t->nice);
     }
-//$ADD/write_handler
-/**
- * @brief fd 0,1 은 표준 입출력을 써야하기에 나중에 NULL이면 리턴하는 식으로 하기 위해 정의
- */
+    //$ADD/write_handler
+
 #ifdef USERPROG
     // FIXME : fdt를 for 문으로 매크로 수만큼 null초기화 현재는 64개 크기 중 2개만 초기화
-    t->fdt[0] = NULL;
-    t->fdt[1] = NULL;
+    t->fd_pg_cnt = 0;
+    _set_fd(stdin, t);
+    _set_fd(stdout, t);
 
     //$feat/process-wait
     t->parent = NULL;
@@ -881,6 +881,29 @@ void priority_update(void) {
 }
 // test-temp/mlfqs
 
-bool is_user_thread(void) {
-    return (thread_current()->pml4 != NULL);
+static int _set_fd(struct file *file, struct thread *t) {
+    int i = 0;
+    for (; i < t->fd_pg_cnt << (PGBITS - 3); i++) {
+        if (t->fdt[i] == NULL) {
+            t->fdt[i] = file;
+            return i;
+        }
+    }
+
+    uint8_t *kpage = palloc_get_page(PAL_ZERO);
+    uintptr_t upage = FDT_BASE + (t->fd_pg_cnt << PGBITS);
+    if (kpage != NULL) {
+        if (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, true)) {
+            t->fd_pg_cnt++;
+            t->fdt[i] = file;
+            return i;
+        } else {
+            palloc_free_page(kpage);
+        }
+    }
+    return -1;
+}
+
+int set_fd(struct file *file) {
+    return _set_fd(file, thread_current());
 }
