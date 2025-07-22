@@ -304,16 +304,14 @@ static int write_handler(int fd, const void *buffer,
                          unsigned size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
 
     if (is_user_accesable(buffer, size, false)) {
-        if (fd == 0) {
+        struct file *get_file = get_file_from_fd(fd);
+        if (get_file == global_stdin) {
             exit_handler(-1);
-        } else if (fd == 1) {
+        } else if (get_file == global_stdout) {
             putbuf(buffer, size);
-        } else if (fd > 2) {
+        } else {
             // FIXME: 락이랑 접근해서 작성하는거 구현할 것
-            // 수정필요 acquire_console();
-            struct file *get_file = get_file_from_fd(fd);
             file_write(get_file, buffer, size);
-            // 수정필요  release_console();
         }
         return size;
     } else {
