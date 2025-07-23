@@ -390,4 +390,5 @@ static void close_handler(int fd) {
         NOT_REACHED();
     }
     thread_current()->fdt[fd] = NULL;
+    thread_current()->open_file_cnt --;
 }
