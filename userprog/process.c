@@ -302,8 +302,10 @@ int process_exec(void *f_name) {
     success = load(file_name, args, &_if);
     /* If load failed, quit. */
     palloc_free_page(f_name);
-    if (!success)
-        return -1;
+    if (!success) {
+        thread_current()->exit_status = -1;
+        thread_exit();
+    }
 
     strlcpy(thread_current()->name, name, LOADER_ARGS_LEN);
     /* Start switched process. */
@@ -461,8 +463,6 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
  * Returns true if successful, false otherwise. */
 static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     struct thread *t = thread_current();
-    memset(t->name, 0, 16);
-    memcpy(t->name, file_name, strlen(file_name));
     struct ELF ehdr;
     struct file *file = NULL;
     off_t file_ofs;
@@ -582,7 +582,10 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     success = true;
 
 done:
-    /* We arrive here whether the load is successful or not. */
+    if (success) {
+        memset(t->name, 0, 16);
+        memcpy(t->name, file_name, strlen(file_name));
+    }
     file_close(file);
     return success;
 }
