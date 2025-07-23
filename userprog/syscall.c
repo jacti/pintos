@@ -4,7 +4,6 @@
 #include <string.h>
 #include <syscall-nr.h>
 
-#include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "intrinsic.h"
 #include "threads/flags.h"
@@ -12,6 +11,7 @@
 #include "threads/loader.h"
 #include "threads/thread.h"
 #include "user/syscall.h"
+#include "userprog/file_abstract.h"
 #include "userprog/gdt.h"
 #include "userprog/process.h"
 
@@ -172,7 +172,7 @@ static bool put_user(uint8_t *udst, uint8_t byte) {
  * get_user 및 put_user는 페이지 폴트 발생 시 -1을 반환하도록 구현되어 있습니다.
  */
 static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags flag) {
-    if (flag && IS_STR) {
+    if (flag & IS_STR) {
         if (get_user((uint8_t *)start) == (int64_t)-1) {
             return false;
         }
@@ -181,11 +181,11 @@ static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags
 
     uintptr_t end = (uintptr_t)start + size, ptr = start;
     size_t n = pg_diff(start, end);
-    uint8_t byte;
+    int64_t byte;
 
     ASSERT((uintptr_t)start <= (uintptr_t)end);
 
-    if (start == NULL || (flag && P_USER && !is_user_vaddr(end))) {
+    if (start == NULL || ((flag & P_USER) && !is_user_vaddr(end))) {
         return false;
     }
 
@@ -193,8 +193,8 @@ static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags
         if ((byte = get_user((uint8_t *)ptr)) == (int64_t)-1) {
             return false;
         }
-        if (flag && P_WRITE) {
-            if (put_user(ptr, byte) == (int64_t)-1) {
+        if (flag & P_WRITE) {
+            if (put_user(ptr, (uint8_t)byte) == (int64_t)-1) {
                 return false;
             }
         }
@@ -214,7 +214,7 @@ static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags
  * @see
  * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
  */
-static struct file *get_file_from_fd(int fd) {
+static struct File *get_file_from_fd(int fd) {
     if (get_user((thread_current()->fdt + fd)) == (int64_t)-1) {
         return NULL;
     }
@@ -270,21 +270,28 @@ static int wait_handler(pid_t pid) {
 
 /* 파일 생성 */
 static bool create_handler(const char *file, unsigned initial_size) {
-    return false;  // TODO: filesys_create 호출
+    if (is_user_accesable(file, 0, P_USER | IS_STR)) {
+        return filesys_create(file, initial_size);
+    }
+    exit_handler(-1);
+    NOT_REACHED();
+    return false;
 }
 
 /* 파일 삭제 */
 static bool remove_handler(const char *file) {
-    if (is_user_accesable(file, 0, P_KERNEL | P_WRITE | IS_STR)) {
-        return filesys_remove(file);  // TODO: filesys_remove 호출
+    if (is_user_accesable(file, 0, P_USER | IS_STR)) {
+        return filesys_remove(file);
     }
+    exit_handler(-1);
+    NOT_REACHED();
     return false;
 }
 
 /* 파일 열기 */
 static int open_handler(const char *file_name) {
     if (file_name && is_user_accesable(file_name, 0, P_USER | IS_STR)) {
-        struct file *file = filesys_open(file_name);
+        struct File *file = open_file(file_name);
         if (file == NULL) {
             return -1;
         }
@@ -295,31 +302,28 @@ static int open_handler(const char *file_name) {
 
 /* 파일 크기 반환 */
 static int filesize_handler(int fd) {
-    struct file *get_file = get_file_from_fd(fd);
-    return file_length(get_file);
-    // TODO: fd로 file 찾아서 길이 반환
+    int result = -1;
+    struct File *get_file = get_file_from_fd(fd);
+    if (get_file) {
+        result = get_file_size(get_file);
+    }
+    if (result == -1) {
+        exit_handler(-1);
+    }
+    return result;
 }
 
 /* 파일 또는 STDIN에서 읽기 */
 static int read_handler(int fd, void *buffer, unsigned size) {
-    struct file *get_file = get_file_from_fd(fd);
-    if (is_user_accesable(buffer, size, P_USER | P_WRITE)) {
-        if (get_file == NULL) {
-            exit_handler(-1);
-        } else if (get_file == global_stdin) {
-            for (int i = 0; i < size; i++) {
-                char a = input_getc();
-                buffer = &a;
-                buffer++;
-            }
-        } else if (get_file == global_stdout) {
-            exit_handler(-1);
-        } else {
-            size = file_read(get_file, buffer, size);
-        }
-        return size;
+    struct File *get_file = get_file_from_fd(fd);
+    int result = -1;
+    if (get_file != NULL && is_user_accesable(buffer, size, P_USER | P_WRITE)) {
+        result = read_file(get_file, buffer, size);
     }
-    exit_handler(-1);
+    if (result == -1) {
+        exit_handler(-1);
+    }
+    return result;
 }
 
 /* 파일 또는 STDOUT으로 쓰기 */
@@ -345,54 +349,41 @@ static int read_handler(int fd, void *buffer, unsigned size) {
 static int write_handler(int fd, const void *buffer,
                          unsigned size) {  // write의 목적은 buf를 fd에 쓰기해주는 함수
 
-    if (is_user_accesable(buffer, size, P_USER)) {
-        struct file *get_file = get_file_from_fd(fd);
-        if (get_file == global_stdin) {
-            exit_handler(-1);
-        } else if (get_file == global_stdout) {
-            putbuf(buffer, size);
-        } else {
-            // FIXME: 락이랑 접근해서 작성하는거 구현할 것
-            if (get_file == NULL) {
-                return -1;
-            }
-            file_write(get_file, buffer, size);
-        }
-        return size;
-    } else {
+    struct File *get_file = get_file_from_fd(fd);
+    int result = -1;
+    if (get_file != NULL && is_user_accesable(buffer, size, P_USER)) {
+        result = write_file(get_file, buffer, size);
+    }
+    if (result == -1) {
         exit_handler(-1);
     }
-    NOT_REACHED()
-    return -1;
+    return result;
 }
 
 /* 파일 커서 위치 이동 */
 static void seek_handler(int fd, unsigned position) {
-    // TODO: file_seek 호출
-    struct file *get_file = get_file_from_fd(fd);
-    if (get_file == NULL || get_file == global_stdin || get_file == global_stdout) {
-        return;
+    struct File *get_file = get_file_from_fd(fd);
+    if (get_file == NULL || seek_file(get_file, position) == -1) {
+        exit_handler(-1);
     }
-    file_seek(get_file, position);
 }
 
 /* 파일 커서 위치 반환 */
 static unsigned tell_handler(int fd) {
-    struct file *f = get_file_from_fd(fd);
-    if (f == NULL || f == global_stdin || f == global_stdout) {
+    struct File *get_file = get_file_from_fd(fd);
+    int64_t result;
+    if (get_file == NULL || (result = tell_handler(get_file)) == -1) {
         exit_handler(-1);
-    } else {
-        return file_tell(f);
     }
+    return (unsigned)result;
 }
 
 /* 파일 닫기 */
 static void close_handler(int fd) {
-    struct file *f = get_file_from_fd(fd);
-    if (f == NULL || f == global_stdin || f == global_stdout) {
+    struct File *get_file = get_file_from_fd(fd);
+    if (get_file == NULL || close_file(get_file) == -1) {
         exit_handler(-1);
-    } else {
-        file_close(f);
-        thread_current()->fdt[fd] = NULL;
+        NOT_REACHED();
     }
+    thread_current()->fdt[fd] = NULL;
 }

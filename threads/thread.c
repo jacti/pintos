@@ -14,8 +14,6 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #ifdef USERPROG
-struct file *global_stdin = 1;
-struct file *global_stdout = 2;
 
 #include "userprog/process.h"
 #endif
@@ -64,7 +62,7 @@ bool thread_mlfqs;
 static fixed_t load_avg; /** @brief 전역변수: 부하 평균량  */
 // Add/MLFQ_thread_elem
 
-static int _set_fd(struct file *file, struct thread *t);
+static int _set_fd(struct File *file, struct thread *t);
 
 static void kernel_thread(thread_func *, void *aux);
 
@@ -217,8 +215,8 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
     t->tf.cs = SEL_KCSEG;
     t->tf.eflags = FLAG_IF;
 
-    _set_fd(global_stdin, t);
-    _set_fd(global_stdout, t);
+    _set_fd(&STDIN_FILE, t);
+    _set_fd(&STDOUT_FILE, t);
 
     /* Add to run queue. */
     thread_unblock(t);
@@ -889,7 +887,7 @@ void priority_update(void) {
 }
 // test-temp/mlfqs
 
-static int _set_fd(struct file *file, struct thread *t) {
+static int _set_fd(struct File *file, struct thread *t) {
     if (t->open_file_cnt < t->fd_pg_cnt << (PGBITS - 3)) {
         for (int i = 0; i < t->fd_pg_cnt << (PGBITS - 3); i++) {
             if (t->fdt[i] == NULL) {
@@ -911,7 +909,7 @@ static int _set_fd(struct file *file, struct thread *t) {
     }
 }
 
-int set_fd(struct file *file) {
+int set_fd(struct File *file) {
     return _set_fd(file, thread_current());
 }
 

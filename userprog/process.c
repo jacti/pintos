@@ -259,12 +259,7 @@ static void __do_fork(void *aux) {
 
         for (int i = 0; current->open_file_cnt < parent->open_file_cnt; i++) {
             if (parent->fdt[i] != NULL) {
-                if (parent->fdt[i] == global_stdin || parent->fdt[i] == global_stdout) {
-                    current->fdt[i] = parent->fdt[i];
-                } else {
-                    current->fdt[i] = file_duplicate(parent->fdt[i]);
-                }
-
+                current->fdt[i] = duplicate_file(parent->fdt[i]);
                 current->open_file_cnt++;
             }
         }
@@ -376,6 +371,17 @@ static void process_cleanup(void) {
          * directory before destroying the process's page
          * directory, or our active page directory will be one
          * that's been freed (and cleared). */
+
+        if (curr->fd_pg_cnt != 0) {
+            for (int i = 0; curr->open_file_cnt > 0; i++) {
+                if (curr->fdt[i] != NULL) {
+                    close_file(curr->fdt[i]);
+                    curr->open_file_cnt--;
+                }
+            }
+            palloc_free_multiple(curr->fdt, curr->fd_pg_cnt);
+        }
+
         curr->pml4 = NULL;
         pml4_activate(NULL);
         pml4_destroy(pml4);
