@@ -84,9 +84,9 @@ sm-full | --fs-disk=10 -p tests/filesys/base/sm-full:sm-full | -q   -f run | 'sm
 sm-random | --fs-disk=10 -p tests/filesys/base/sm-random:sm-random | -q   -f run | 'sm-random' | tests/filesys/base
 sm-seq-block | --fs-disk=10 -p tests/filesys/base/sm-seq-block:sm-seq-block | -q   -f run | 'sm-seq-block' | tests/filesys/base
 sm-seq-random | --fs-disk=10 -p tests/filesys/base/sm-seq-random:sm-seq-random | -q   -f run | 'sm-seq-random' | tests/filesys/base
-syn-read | -T 60 --fs-disk=10 -p tests/filesys/base/syn-read:syn-read -p tests/filesys/base/child-syn-read:child-syn-read | -q   -f run | 'syn-read' | tests/filesys/base
-syn-remove | -T 60 --fs-disk=10 -p tests/filesys/base/syn-remove:syn-remove | -q   -f run | 'syn-remove' | tests/filesys/base
-syn-write | -T 60 --fs-disk=10 -p tests/filesys/base/syn-write:syn-write -p tests/filesys/base/child-syn-wrt:child-syn-wrt | -q   -f run | 'syn-write' | tests/filesys/base
+syn-read | -T 10 --fs-disk=10 -p tests/filesys/base/syn-read:syn-read -p tests/filesys/base/child-syn-read:child-syn-read | -q   -f run | 'syn-read' | tests/filesys/base
+syn-remove | --fs-disk=10 -p tests/filesys/base/syn-remove:syn-remove | -q   -f run | 'syn-remove' | tests/filesys/base
+syn-write | --fs-disk=10 -p tests/filesys/base/syn-write:syn-write -p tests/filesys/base/child-syn-wrt:child-syn-wrt | -q   -f run | 'syn-write' | tests/filesys/base
 
 [userprog/no-vm]
 multi-oom | --fs-disk=10 -p tests/userprog/no-vm/multi-oom:multi-oom | -q   -f run | 'multi-oom' | tests/userprog/no-vm
