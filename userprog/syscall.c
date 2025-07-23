@@ -137,7 +137,7 @@ static int64_t get_user(const uint8_t *uaddr) {
         "done_get:\n"  // (페이지 폴트 핸들러가 result를 -1로 설정하고 여기에 점프하도록 수정되어야
                        // 함)
         : "=&a"(result)
-        : "m"(*uaddr));
+        : "m"(*uaddr), "c"(uaddr));
     return result;
 }
 
@@ -152,7 +152,7 @@ static bool put_user(uint8_t *udst, uint8_t byte) {
         "done_put:\n"  // (페이지 폴트 핸들러가 error_code를 -1로 설정하고 여기에 점프하도록
                        // 수정되어야 함)
         : "=&a"(error_code), "=m"(*udst)
-        : "q"(byte));
+        : "q"(byte), "c"(udst));
     return error_code != -1;
 }
 
@@ -390,5 +390,5 @@ static void close_handler(int fd) {
         NOT_REACHED();
     }
     thread_current()->fdt[fd] = NULL;
-    thread_current()->open_file_cnt --;
+    thread_current()->open_file_cnt--;
 }
