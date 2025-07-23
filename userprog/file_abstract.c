@@ -70,9 +70,11 @@ int seek_file(struct File* file, off_t size) {
     switch (file->type) {
         case FILE:
             file_seek(file->file_ptr, size);
+            return 0;
             break;
 
         default:
+            return -1;
             break;
     }
 }

@@ -302,8 +302,15 @@ static int open_handler(const char *file_name) {
 
 /* 파일 크기 반환 */
 static int filesize_handler(int fd) {
+    int result = -1;
     struct File *get_file = get_file_from_fd(fd);
-    return get_file_size(get_file);
+    if (get_file) {
+        result = get_file_size(get_file);
+    }
+    if (result == -1) {
+        exit_handler(-1);
+    }
+    return result;
 }
 
 /* 파일 또는 STDIN에서 읽기 */

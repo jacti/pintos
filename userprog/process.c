@@ -376,6 +376,7 @@ static void process_cleanup(void) {
             for (int i = 0; curr->open_file_cnt > 0; i++) {
                 if (curr->fdt[i] != NULL) {
                     close_file(curr->fdt[i]);
+                    curr->open_file_cnt--;
                 }
             }
             palloc_free_multiple(curr->fdt, curr->fd_pg_cnt);
