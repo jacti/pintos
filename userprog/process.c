@@ -132,7 +132,6 @@ tid_t process_fork(const char *name, struct intr_frame *if_) {
     }
 
     sema_down(&curr->fork_sema);
-
     return tid;
 }
 
@@ -222,8 +221,6 @@ static void __do_fork(void *aux) {
     /* 1. Read the cpu context to local stack. */
     memcpy(&if_, parent_if, sizeof(struct intr_frame));
 
-    if_.R.rax = 0;  // 자식 rax 초기화
-
     /* 2. Duplicate PT */
     current->pml4 = pml4_create();
     if (current->pml4 == NULL)
@@ -269,6 +266,7 @@ static void __do_fork(void *aux) {
 
     free(fork_data);
     sema_up(&(current->parent->fork_sema));
+    if_.R.rax = 0;  // 자식 rax 초기화
 
     /* Finally, switch to the newly created process. */
     if (succ)
@@ -286,6 +284,8 @@ int process_exec(void *f_name) {
     char *file_name = strtok_r(f_name, " ", &args);
     //  feat/arg-parse
     bool success;
+    char name[LOADER_ARGS_LEN];
+    strlcpy(name, thread_current()->name, LOADER_ARGS_LEN);
 
     /* We cannot use the intr_frame in t3e thread structure.
      * This is because when current thread rescheduled,
@@ -300,12 +300,12 @@ int process_exec(void *f_name) {
 
     /* And then load the binary */
     success = load(file_name, args, &_if);
-
     /* If load failed, quit. */
-    palloc_free_page(file_name);
+    palloc_free_page(f_name);
     if (!success)
         return -1;
 
+    strlcpy(thread_current()->name, name, LOADER_ARGS_LEN);
     /* Start switched process. */
     do_iret(&_if);
     NOT_REACHED();
@@ -349,6 +349,15 @@ void process_exit(void) {
         sema_down(&cur->wait_sema);
     }
     process_cleanup();
+    if (cur->fd_pg_cnt != 0) {
+        for (int i = 0; cur->open_file_cnt > 0; i++) {
+            if (cur->fdt[i] != NULL) {
+                close_file(cur->fdt[i]);
+                cur->open_file_cnt--;
+            }
+        }
+        palloc_free_multiple(cur->fdt, cur->fd_pg_cnt);
+    }
 }
 
 /* Free the current process's resources. */
@@ -371,16 +380,6 @@ static void process_cleanup(void) {
          * directory before destroying the process's page
          * directory, or our active page directory will be one
          * that's been freed (and cleared). */
-
-        if (curr->fd_pg_cnt != 0) {
-            for (int i = 0; curr->open_file_cnt > 0; i++) {
-                if (curr->fdt[i] != NULL) {
-                    close_file(curr->fdt[i]);
-                    curr->open_file_cnt--;
-                }
-            }
-            palloc_free_multiple(curr->fdt, curr->fd_pg_cnt);
-        }
 
         curr->pml4 = NULL;
         pml4_activate(NULL);
@@ -555,7 +554,7 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     uintptr_t stack_ptr[LOADER_ARGS_LEN / 2];
     argv[0] = file_name;
     uint8_t argc = 1;
-    char *save_ptr;
+    char *save_ptr = NULL;
     argv[argc] = strtok_r(args, " ", &save_ptr);
     while (argv[argc] != NULL) {
         argv[++argc] = strtok_r(NULL, " ", &save_ptr);

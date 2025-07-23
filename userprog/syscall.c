@@ -9,6 +9,7 @@
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/loader.h"
+#include "threads/palloc.h"
 #include "threads/thread.h"
 #include "user/syscall.h"
 #include "userprog/file_abstract.h"
@@ -256,11 +257,14 @@ static pid_t fork_handler(const char *thread_name, struct intr_frame *f) {
 
 /* 사용자 프로그램 실행 */
 static int exec_handler(const char *file) {
-    if (is_user_accesable(file, 0, P_KERNEL)) {
-        return process_exec(file);
-    } else {
-        exit_handler(-1);
+    if (is_user_accesable(file, 0, P_USER)) {
+        char *fn_copy = palloc_get_page(0);
+        if (fn_copy) {
+            strlcpy(fn_copy, file, PGSIZE);
+            return process_exec(fn_copy);
+        }
     }
+    exit_handler(-1);
 }
 
 /* 자식 프로세스가 종료될 때까지 대기 */
