@@ -744,7 +744,7 @@ static bool install_page(void *upage, void *kpage, bool writable) {
  * rsp를 원래 값으로 복원한 후 NULL을 반환합니다.
  */
 static uint64_t *push_stack(char *arg, size_t size, struct intr_frame *if_) {
-    ASSERT(size > 0);
+    ASSERT(size >= 0);
     bool alloc_fail = false;
     uintptr_t old_rsp = if_->rsp;
     if_->rsp = old_rsp - size;
