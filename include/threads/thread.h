@@ -165,6 +165,7 @@ struct thread {
     struct list_elem sibling_elem;
     struct semaphore wait_sema;
     struct semaphore fork_sema;
+    struct semaphore exit_sema;
     int exit_status;
     // feat/process-wait
 

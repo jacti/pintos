@@ -74,8 +74,12 @@ tid_t process_create_initd(const char *file_name) {
     strlcpy(fn_copy, file_name, PGSIZE);
     init_data.file_name = fn_copy;
     init_data.parent = t;
+
+    char *saveptr = NULL;
+    char *file_cut = strtok_r(file_name, " ", &saveptr);
+
     /* Create a new thread to execute FILE_NAME. */
-    tid = thread_create(file_name, PRI_DEFAULT, initd, &init_data);
+    tid = thread_create(file_cut, PRI_DEFAULT, initd, &init_data);
     sema_down(&t->wait_sema);
     if (tid == TID_ERROR)
         palloc_free_page(fn_copy);
@@ -284,8 +288,6 @@ int process_exec(void *f_name) {
     char *file_name = strtok_r(f_name, " ", &args);
     //  feat/arg-parse
     bool success;
-    char name[LOADER_ARGS_LEN];
-    strlcpy(name, thread_current()->name, LOADER_ARGS_LEN);
 
     /* We cannot use the intr_frame in t3e thread structure.
      * This is because when current thread rescheduled,
@@ -307,7 +309,6 @@ int process_exec(void *f_name) {
         thread_exit();
     }
 
-    strlcpy(thread_current()->name, name, LOADER_ARGS_LEN);
     /* Start switched process. */
     do_iret(&_if);
     NOT_REACHED();
@@ -329,11 +330,12 @@ int process_wait(tid_t child_tid) {
          e = list_next(e)) {
         struct thread *t = list_entry(e, struct thread, sibling_elem);
         if (t && t->tid == child_tid) {
-            sema_down(&curr->wait_sema);
+            // sema_down(&t->exit_sema);
+            sema_down(&t->wait_sema);
             barrier();
             child_exit_status = t->exit_status;
             list_remove(&t->sibling_elem);
-            sema_up(&t->wait_sema);
+            sema_up(&t->exit_sema);
             break;
         }
     }
@@ -347,8 +349,8 @@ void process_exit(void) {
         if (is_user_thread()) {
             printf("%s: exit(%d)\n", cur->name, cur->exit_status);
         }
-        sema_up(&cur->parent->wait_sema);
-        sema_down(&cur->wait_sema);
+        sema_up(&cur->wait_sema);
+        sema_down(&cur->exit_sema);
     }
     process_cleanup();
     if (cur->fd_pg_cnt != 0) {
@@ -582,10 +584,6 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     success = true;
 
 done:
-    if (success) {
-        memset(t->name, 0, 16);
-        memcpy(t->name, file_name, strlen(file_name));
-    }
     file_close(file);
     return success;
 }
