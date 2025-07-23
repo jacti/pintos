@@ -345,14 +345,6 @@ int process_wait(tid_t child_tid) {
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
     struct thread *cur = thread_current();
-    if (cur->parent != NULL) {
-        if (is_user_thread()) {
-            printf("%s: exit(%d)\n", cur->name, cur->exit_status);
-        }
-        sema_up(&cur->wait_sema);
-        sema_down(&cur->exit_sema);
-    }
-    process_cleanup();
     if (cur->fd_pg_cnt != 0) {
         for (int i = 0; cur->open_file_cnt > 0; i++) {
             if (cur->fdt[i] != NULL) {
@@ -362,6 +354,14 @@ void process_exit(void) {
         }
         palloc_free_multiple(cur->fdt, cur->fd_pg_cnt);
     }
+    if (cur->parent != NULL) {
+        if (is_user_thread()) {
+            printf("%s: exit(%d)\n", cur->name, cur->exit_status);
+        }
+        sema_up(&cur->wait_sema);
+        sema_down(&cur->exit_sema);
+    }
+    process_cleanup();
 }
 
 /* Free the current process's resources. */
@@ -466,6 +466,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t 
 static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     struct thread *t = thread_current();
     struct ELF ehdr;
+    struct File *file_a = NULL;
     struct file *file = NULL;
     off_t file_ofs;
     bool success = false;
@@ -478,7 +479,8 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     process_activate(thread_current());
 
     /* Open executable file. */
-    file = filesys_open(file_name);
+    file_a = open_file(file_name);
+    file = file_a->file_ptr;
     if (file == NULL) {
         printf("load: %s: open failed\n", file_name);
         goto done;
@@ -584,7 +586,10 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     success = true;
 
 done:
-    file_close(file);
+    if (!is_file_writable(file_a)) {
+        file_deny_write(file_a->file_ptr);
+    }
+    set_fd(file_a);
     return success;
 }
 
