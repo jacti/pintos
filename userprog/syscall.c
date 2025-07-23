@@ -172,7 +172,7 @@ static bool put_user(uint8_t *udst, uint8_t byte) {
  * get_user 및 put_user는 페이지 폴트 발생 시 -1을 반환하도록 구현되어 있습니다.
  */
 static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags flag) {
-    if (flag && IS_STR) {
+    if (flag & IS_STR) {
         if (get_user((uint8_t *)start) == (int64_t)-1) {
             return false;
         }
@@ -181,11 +181,11 @@ static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags
 
     uintptr_t end = (uintptr_t)start + size, ptr = start;
     size_t n = pg_diff(start, end);
-    uint8_t byte;
+    int64_t byte;
 
     ASSERT((uintptr_t)start <= (uintptr_t)end);
 
-    if (start == NULL || (flag && P_USER && !is_user_vaddr(end))) {
+    if (start == NULL || ((flag & P_USER) && !is_user_vaddr(end))) {
         return false;
     }
 
@@ -193,8 +193,8 @@ static bool is_user_accesable(void *start, size_t size, enum pointer_check_flags
         if ((byte = get_user((uint8_t *)ptr)) == (int64_t)-1) {
             return false;
         }
-        if (flag && P_WRITE) {
-            if (put_user(ptr, byte) == (int64_t)-1) {
+        if (flag & P_WRITE) {
+            if (put_user(ptr, (uint8_t)byte) == (int64_t)-1) {
                 return false;
             }
         }

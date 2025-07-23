@@ -75,7 +75,7 @@ close-bad-fd PASS
 alarm-negative PASS
 multi-child-fd FAIL
 exit PASS
-write-bad-ptr PASS
+write-bad-ptr FAIL
 priority-donate-sema PASS
 lg-seq-block FAIL
 wait-simple FAIL
