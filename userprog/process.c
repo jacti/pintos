@@ -21,6 +21,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/check_perm.h"
 #include "userprog/gdt.h"
 #include "userprog/tss.h"
 #ifdef VM
@@ -136,6 +137,10 @@ tid_t process_fork(const char *name, struct intr_frame *if_) {
     }
 
     sema_down(&curr->fork_sema);
+    struct thread *t = list_entry(list_back(&curr->childs), struct thread, sibling_elem);
+    if (t->exit_status == -1) {
+        return -1;
+    }
     return tid;
 }
 
@@ -258,8 +263,19 @@ static void __do_fork(void *aux) {
             goto error;
         }
 
-        for (int i = 0; current->open_file_cnt < parent->open_file_cnt; i++) {
+        int i = 0;
+        for (; current->open_file_cnt < parent->open_file_cnt; i++) {
+            barrier();
+            if (i >= parent->fd_pg_cnt << PGBITS) {
+                msg("over");
+            }
+            if (!is_user_accesable(parent->fdt + i, 8, P_KERNEL)) {
+                msg("parent->fdt oom");
+            }
             if (parent->fdt[i] != NULL) {
+                if (!is_user_accesable(current->fdt + i, 8, P_KERNEL | P_WRITE)) {
+                    msg("current->fdt oom");
+                }
                 current->fdt[i] = duplicate_file(parent->fdt[i]);
                 current->open_file_cnt++;
             }
@@ -269,14 +285,16 @@ static void __do_fork(void *aux) {
     process_init();
 
     free(fork_data);
-    sema_up(&(current->parent->fork_sema));
     if_.R.rax = 0;  // 자식 rax 초기화
 
     /* Finally, switch to the newly created process. */
     if (succ)
-        do_iret(&if_);
+        sema_up(&(current->parent->fork_sema));
+    do_iret(&if_);
 error:
     free(fork_data);
+    current->exit_status = -1;
+    sema_up(&(current->parent->fork_sema));
     thread_exit();
 }
 
@@ -346,19 +364,22 @@ int process_wait(tid_t child_tid) {
 void process_exit(void) {
     struct thread *cur = thread_current();
     if (cur->fd_pg_cnt != 0) {
-        for (int i = 0; cur->open_file_cnt > 0; i++) {
+        int i = 0;
+        for (; cur->open_file_cnt > 0; i++) {
+            barrier();
             remove_fd(i);
         }
         palloc_free_multiple(cur->fdt, cur->fd_pg_cnt);
     }
+    bool is_user = is_user_thread();
+    process_cleanup();
     if (cur->parent != NULL) {
-        if (is_user_thread()) {
+        if (is_user) {
             printf("%s: exit(%d)\n", cur->name, cur->exit_status);
         }
         sema_up(&cur->wait_sema);
         sema_down(&cur->exit_sema);
     }
-    process_cleanup();
 }
 
 /* Free the current process's resources. */
@@ -582,6 +603,9 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
 
     file_deny_write(file_a->file_ptr);
     int fd = set_fd(file_a);
+    if (fd == -1) {
+        goto done;
+    }
     // remove_if_duplicated(fd);
     success = true;
 done:

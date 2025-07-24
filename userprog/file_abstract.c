@@ -107,7 +107,14 @@ struct File* duplicate_file(struct File* file) {
     switch (file->type) {
         case FILE:
             new_file = calloc(1, sizeof(struct File));
+            if (new_file == NULL) {
+                return NULL;
+            }
             new_file->file_ptr = file_duplicate(file->file_ptr);
+            if (new_file->file_ptr == NULL) {
+                free(new_file);
+                return NULL;
+            }
             break;
         case STDIN:
             new_file = &STDIN_FILE;

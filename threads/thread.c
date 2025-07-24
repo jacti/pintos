@@ -15,6 +15,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 
+#include "userprog/check_perm.h"
 #include "userprog/process.h"
 #endif
 
@@ -609,7 +610,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     sema_init(&t->wait_sema, 0);
     sema_init(&t->fork_sema, 0);
     sema_init(&t->exit_sema, 0);
-    t->exit_status = -1;
+    t->exit_status = 0;
     // feat/process-wait
 
 #endif
@@ -898,10 +899,14 @@ static int _set_fd(struct File *file, struct thread *t) {
             }
         }
     } else {
-        uint64_t *kpage = palloc_get_multiple((PAL_ASSERT | PAL_ZERO), t->fd_pg_cnt + 1);
+        uint64_t *kpage = palloc_get_multiple((PAL_ZERO), t->fd_pg_cnt + 1);
+        if (kpage == NULL) {
+            return -1;
+        }
         if (t->fd_pg_cnt != 0) {
-            memcpy(t->fdt, kpage, (t->fd_pg_cnt << PGBITS));
-            palloc_free_multiple(t->fdt, t->fd_pg_cnt);
+            void *old_fdt = t->fdt;
+            memcpy(kpage, old_fdt, (t->fd_pg_cnt << PGBITS));
+            palloc_free_multiple(old_fdt, t->fd_pg_cnt);
         }
         t->fd_pg_cnt++;
         t->fdt = kpage;
@@ -917,9 +922,12 @@ int set_fd(struct File *file) {
 int remove_fd(int fd) {
     int result = -1;
     struct thread *cur = thread_current();
+    if (!is_user_accesable(cur->fdt + fd, 8, P_KERNEL | P_WRITE)) {
+        msg("here!!");
+    }
     if (cur->fdt[fd] != NULL) {
         close_file(cur->fdt[fd]);
-        cur->open_file_cnt--;
+        cur->open_file_cnt -= 1;
         result = fd;
     }
     cur->fdt[fd] = NULL;
