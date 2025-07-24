@@ -347,10 +347,7 @@ void process_exit(void) {
     struct thread *cur = thread_current();
     if (cur->fd_pg_cnt != 0) {
         for (int i = 0; cur->open_file_cnt > 0; i++) {
-            if (cur->fdt[i] != NULL) {
-                close_file(cur->fdt[i]);
-                cur->open_file_cnt--;
-            }
+            remove_fd(i);
         }
         palloc_free_multiple(cur->fdt, cur->fd_pg_cnt);
     }
@@ -583,10 +580,9 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     if_->R.rdi = argc;
     //  feat/arg-parse
 
-    if (!is_file_writable(file_a)) {
-        file_deny_write(file_a->file_ptr);
-    }
-    set_fd(file_a);
+    file_deny_write(file_a->file_ptr);
+    int fd = set_fd(file_a);
+    // remove_if_duplicated(fd);
     success = true;
 done:
     return success;

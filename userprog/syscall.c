@@ -294,10 +294,8 @@ static unsigned tell_handler(int fd) {
 /* 파일 닫기 */
 static void close_handler(int fd) {
     struct File *get_file = get_file_from_fd(fd);
-    if (get_file == NULL || close_file(get_file) == -1) {
+    if (get_file == NULL || remove_fd(fd) == -1) {
         exit_handler(-1);
         NOT_REACHED();
     }
-    thread_current()->fdt[fd] = NULL;
-    thread_current()->open_file_cnt--;
 }

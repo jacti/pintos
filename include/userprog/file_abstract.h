@@ -115,4 +115,6 @@ struct File* duplicate_file(struct File* file);
 
 bool is_file_writable(struct File* file);
 
+bool is_same_file(struct File* a, struct File* b);
+
 #endif /* USERPROG_FILE_ABSTRACT_H */

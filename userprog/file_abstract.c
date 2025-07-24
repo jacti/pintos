@@ -137,3 +137,16 @@ bool is_file_writable(struct File* file) {
             return false;
     }
 }
+
+bool is_same_file(struct File* a, struct File* b) {
+    if (a->type != b->type) {
+        return false;
+    }
+    switch (a->type) {
+        case FILE:
+            return (a->file_ptr->inode == b->file_ptr->inode);
+
+        default:
+            return true;
+    }
+}

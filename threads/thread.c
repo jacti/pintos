@@ -914,6 +914,44 @@ int set_fd(struct File *file) {
     return _set_fd(file, thread_current());
 }
 
+int remove_fd(int fd) {
+    int result = -1;
+    struct thread *cur = thread_current();
+    if (cur->fdt[fd] != NULL) {
+        close_file(cur->fdt[fd]);
+        cur->open_file_cnt--;
+        result = fd;
+    }
+    cur->fdt[fd] = NULL;
+    return result;
+}
+
+int remove_if_duplicated(int fd) {
+    struct thread *cur = thread_current();
+    struct File *file;
+    struct File *origin;
+    if ((file = cur->fdt[fd]) == NULL) {
+        return -1;
+    }
+    int check_cnt = 0;
+    for (int i = 0; check_cnt < cur->open_file_cnt - 1; i++) {
+        origin = cur->fdt[i];
+        if (i == fd) {
+            continue;
+        }
+        if (origin != NULL) {
+            check_cnt++;
+            if (is_same_file(origin, file)) {
+                remove_fd(i);
+                cur->fdt[i] = file;
+                cur->fdt[fd] = NULL;
+                return i;
+            }
+        }
+    }
+    return fd;
+}
+
 /**
  * @brief 현재 스레드가 사용자 프로세스(유저 스레드)인지 확인한다.
  *

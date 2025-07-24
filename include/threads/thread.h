@@ -236,5 +236,7 @@ bool is_user_thread(void);
 // feat/process-wait
 
 int set_fd(struct File *file);
+int remove_fd(int fd);
+int remove_if_duplicated(int fd);
 
 #endif /* threads/thread.h */
