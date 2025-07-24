@@ -70,7 +70,7 @@ fork-once PASS
 priority-change PASS
 write-boundary PASS
 wait-killed PASS
-lg-full FAIL
+lg-full PASS
 close-bad-fd PASS
 alarm-negative PASS
 multi-child-fd PASS

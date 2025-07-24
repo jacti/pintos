@@ -58,6 +58,6 @@
 
 #define abs(a) ((a) < 0 ? (-1 * (a)) : (a))
 
-#define pg_diff(a, b) (abs(pg_no((a)) - pg_no((b))))
+#define pg_diff(a, b) ((size_t)(abs((__int128_t)(pg_no((a))) - (__int128_t)(pg_no((b))))))
 
 #endif /* threads/vaddr.h */
