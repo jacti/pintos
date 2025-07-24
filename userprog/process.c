@@ -137,6 +137,9 @@ tid_t process_fork(const char *name, struct intr_frame *if_) {
     }
 
     sema_down(&curr->fork_sema);
+    if (list_empty(&curr->childs)) {
+        return -1;
+    }
     struct thread *t = list_entry(list_back(&curr->childs), struct thread, sibling_elem);
     if (t->exit_status == -1) {
         return -1;
@@ -265,18 +268,11 @@ static void __do_fork(void *aux) {
 
         int i = 0;
         for (; current->open_file_cnt < parent->open_file_cnt; i++) {
-            barrier();
-            if (i >= parent->fd_pg_cnt << PGBITS) {
-                msg("over");
-            }
-            if (!is_user_accesable(parent->fdt + i, 8, P_KERNEL)) {
-                msg("parent->fdt oom");
-            }
             if (parent->fdt[i] != NULL) {
-                if (!is_user_accesable(current->fdt + i, 8, P_KERNEL | P_WRITE)) {
-                    msg("current->fdt oom");
-                }
                 current->fdt[i] = duplicate_file(parent->fdt[i]);
+                if (current->fdt[i] == NULL) {
+                    goto error;
+                }
                 current->open_file_cnt++;
             }
         }
@@ -288,13 +284,13 @@ static void __do_fork(void *aux) {
     if_.R.rax = 0;  // 자식 rax 초기화
 
     /* Finally, switch to the newly created process. */
-    if (succ)
+    if (succ) {
         sema_up(&(current->parent->fork_sema));
-    do_iret(&if_);
+        do_iret(&if_);
+    }
 error:
     free(fork_data);
     current->exit_status = -1;
-    sema_up(&(current->parent->fork_sema));
     thread_exit();
 }
 
@@ -376,6 +372,10 @@ void process_exit(void) {
     if (cur->parent != NULL) {
         if (is_user) {
             printf("%s: exit(%d)\n", cur->name, cur->exit_status);
+        }
+        if (list_back(&cur->parent->childs) == &(cur->sibling_elem) &&
+            !list_empty(&cur->parent->fork_sema.waiters)) {
+            sema_up(&cur->parent->fork_sema);
         }
         sema_up(&cur->wait_sema);
         sema_down(&cur->exit_sema);
