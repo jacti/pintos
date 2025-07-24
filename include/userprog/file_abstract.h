@@ -1,5 +1,5 @@
-#ifndef __USERPROG_FILE_ABSTRACT_H
-#define __USERPROG_FILE_ABSTRACT_H
+#ifndef USERPROG_FILE_ABSTRACT_H
+#define USERPROG_FILE_ABSTRACT_H
 
 #include "filesys/file.h"
 
@@ -113,6 +113,6 @@ int close_file(struct File* file);
  */
 struct File* duplicate_file(struct File* file);
 
-#endif /* __USERPROG_FILE_ABSTRACT_H */
-
 bool is_file_writable(struct File* file);
+
+#endif /* USERPROG_FILE_ABSTRACT_H */

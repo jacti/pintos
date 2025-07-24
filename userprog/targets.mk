@@ -5,3 +5,4 @@ userprog_SRC += userprog/syscall.c	# System call handler.
 userprog_SRC += userprog/gdt.c		# GDT initialization.
 userprog_SRC += userprog/tss.c		# TSS management.
 userprog_SRC += userprog/file_abstract.c	# FILE absraction
+userprog_SRC += userprog/check_perm.c		# check_permission

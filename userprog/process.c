@@ -480,11 +480,11 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
 
     /* Open executable file. */
     file_a = open_file(file_name);
-    file = file_a->file_ptr;
-    if (file == NULL) {
+    if (file_a == NULL) {
         printf("load: %s: open failed\n", file_name);
         goto done;
     }
+    file = file_a->file_ptr;
 
     /* Read and verify executable header. */
     if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr ||
@@ -583,13 +583,12 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     if_->R.rdi = argc;
     //  feat/arg-parse
 
-    success = true;
-
-done:
     if (!is_file_writable(file_a)) {
         file_deny_write(file_a->file_ptr);
     }
     set_fd(file_a);
+    success = true;
+done:
     return success;
 }
 
