@@ -79,9 +79,9 @@ static void kill(struct intr_frame *f) {
         case SEL_UCSEG:
             /* User's code segment, so it's a user exception, as we
                expected.  Kill the user process.  */
-            printf("%s: dying due to interrupt %#04llx (%s).\n", thread_name(), f->vec_no,
-                   intr_name(f->vec_no));
-            intr_dump_frame(f);
+            // printf("%s: dying due to interrupt %#04llx (%s).\n", thread_name(), f->vec_no,
+            //        intr_name(f->vec_no));
+            // intr_dump_frame(f);
             thread_exit();
 
         case SEL_KCSEG:
@@ -149,6 +149,11 @@ static void page_fault(struct intr_frame *f) {
     //         user ? "user" : "kernel");
 
     // FIXME :  vm할떄는 고칠 것, userprog 할 때 MMU 활용하기 위해 임시로 만듦
-    f->rip = f->R.rax;
-    f->R.rax = -1;
+    if (f->R.rcx == fault_addr) {
+        f->rip = f->R.rax;
+        f->R.rax = -1;
+    } else {
+        f->R.rax = -1;
+        kill(f);
+    }
 }

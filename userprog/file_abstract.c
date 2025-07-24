@@ -120,3 +120,19 @@ struct File* duplicate_file(struct File* file) {
     new_file->type = file->type;
     return new_file;
 }
+
+bool is_file_writable(struct File* file) {
+    switch (file->type) {
+        case STDIN:
+            return false;
+
+        case STDOUT:
+            return true;
+
+        case FILE:
+            return file->file_ptr->deny_write;
+
+        default:
+            return false;
+    }
+}
