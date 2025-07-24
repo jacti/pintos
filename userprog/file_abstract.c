@@ -2,6 +2,7 @@
 
 #include "filesys/filesys.h"
 #include "threads/malloc.h"
+#include "userprog/check_perm.h"
 #include "userprog/file_abstract.h"
 
 struct File STDIN_FILE = {.type = STDIN, .file_ptr = NULL};
