@@ -6,3 +6,4 @@ userprog_SRC += userprog/gdt.c		# GDT initialization.
 userprog_SRC += userprog/tss.c		# TSS management.
 userprog_SRC += userprog/file_abstract.c	# FILE absraction
 userprog_SRC += userprog/check_perm.c		# check_permission
+userprog_SRC += userprog/file_descriptor.c		# file_descriptor

@@ -22,6 +22,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/check_perm.h"
+#include "userprog/file_descriptor.h"
 #include "userprog/gdt.h"
 #include "userprog/tss.h"
 #ifdef VM
@@ -255,27 +256,8 @@ static void __do_fork(void *aux) {
      * TODO:       from the fork() until this function successfully duplicates
      * TODO:       the resources of parent.*/
     // 부모의 파일 디스크립터 테이블 복사
-    current->fd_pg_cnt = parent->fd_pg_cnt;
-    current->open_file_cnt = 0;
-
-    ASSERT(current->fdt != NULL);
-    if (current->fd_pg_cnt != 0) {
-        palloc_free_page(current->fdt);
-        current->fdt = palloc_get_multiple(PAL_ZERO, current->fd_pg_cnt);
-        if (current->fdt == NULL) {
-            goto error;
-        }
-
-        int i = 0;
-        for (; current->open_file_cnt < parent->open_file_cnt; i++) {
-            if (parent->fdt[i] != NULL) {
-                current->fdt[i] = duplicate_file(parent->fdt[i]);
-                if (current->fdt[i] == NULL) {
-                    goto error;
-                }
-                current->open_file_cnt++;
-            }
-        }
+    if (fork_fdt(parent, current) == -1) {
+        goto error;
     }
 
     process_init();
@@ -359,14 +341,7 @@ int process_wait(tid_t child_tid) {
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
     struct thread *cur = thread_current();
-    if (cur->fd_pg_cnt != 0) {
-        int i = 0;
-        for (; cur->open_file_cnt > 0; i++) {
-            barrier();
-            remove_fd(i);
-        }
-        palloc_free_multiple(cur->fdt, cur->fd_pg_cnt);
-    }
+    clear_fdt(cur);
     bool is_user = is_user_thread();
     process_cleanup();
     if (cur->parent != NULL) {

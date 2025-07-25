@@ -16,6 +16,7 @@
 #ifdef USERPROG
 
 #include "userprog/check_perm.h"
+#include "userprog/file_descriptor.h"
 #include "userprog/process.h"
 #endif
 
@@ -62,8 +63,6 @@ bool thread_mlfqs;
 //$Add/MLFQ_thread_elem
 static fixed_t load_avg; /** @brief 전역변수: 부하 평균량  */
 // Add/MLFQ_thread_elem
-
-static int _set_fd(struct File *file, struct thread *t);
 
 static void kernel_thread(thread_func *, void *aux);
 
@@ -216,8 +215,7 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
     t->tf.cs = SEL_KCSEG;
     t->tf.eflags = FLAG_IF;
 
-    _set_fd(&STDIN_FILE, t);
-    _set_fd(&STDOUT_FILE, t);
+    init_fd(t);
 
     /* Add to run queue. */
     thread_unblock(t);
@@ -888,77 +886,6 @@ void priority_update(void) {
     intr_yield_on_return();
 }
 // test-temp/mlfqs
-
-static int _set_fd(struct File *file, struct thread *t) {
-    if (t->open_file_cnt < t->fd_pg_cnt << (PGBITS - 3)) {
-        for (int i = 0; i < t->fd_pg_cnt << (PGBITS - 3); i++) {
-            if (t->fdt[i] == NULL) {
-                t->fdt[i] = file;
-                t->open_file_cnt++;
-                return i;
-            }
-        }
-    } else {
-        uint64_t *kpage = palloc_get_multiple((PAL_ZERO), t->fd_pg_cnt + 1);
-        if (kpage == NULL) {
-            return -1;
-        }
-        if (t->fd_pg_cnt != 0) {
-            void *old_fdt = t->fdt;
-            memcpy(kpage, old_fdt, (t->fd_pg_cnt << PGBITS));
-            palloc_free_multiple(old_fdt, t->fd_pg_cnt);
-        }
-        t->fd_pg_cnt++;
-        t->fdt = kpage;
-        t->fdt[t->open_file_cnt++] = file;
-        return t->open_file_cnt - 1;
-    }
-}
-
-int set_fd(struct File *file) {
-    return _set_fd(file, thread_current());
-}
-
-int remove_fd(int fd) {
-    int result = -1;
-    struct thread *cur = thread_current();
-    if (!is_user_accesable(cur->fdt + fd, 8, P_KERNEL | P_WRITE)) {
-        msg("here!!");
-    }
-    if (cur->fdt[fd] != NULL) {
-        close_file(cur->fdt[fd]);
-        cur->open_file_cnt -= 1;
-        result = fd;
-    }
-    cur->fdt[fd] = NULL;
-    return result;
-}
-
-int remove_if_duplicated(int fd) {
-    struct thread *cur = thread_current();
-    struct File *file;
-    struct File *origin;
-    if ((file = cur->fdt[fd]) == NULL) {
-        return -1;
-    }
-    int check_cnt = 0;
-    for (int i = 0; check_cnt < cur->open_file_cnt - 1; i++) {
-        origin = cur->fdt[i];
-        if (i == fd) {
-            continue;
-        }
-        if (origin != NULL) {
-            check_cnt++;
-            if (is_same_file(origin, file)) {
-                remove_fd(i);
-                cur->fdt[i] = file;
-                cur->fdt[fd] = NULL;
-                return i;
-            }
-        }
-    }
-    return fd;
-}
 
 /**
  * @brief 현재 스레드가 사용자 프로세스(유저 스레드)인지 확인한다.

@@ -14,6 +14,7 @@
 #include "user/syscall.h"
 #include "userprog/check_perm.h"
 #include "userprog/file_abstract.h"
+#include "userprog/file_descriptor.h"
 #include "userprog/gdt.h"
 #include "userprog/process.h"
 
@@ -35,6 +36,7 @@ static int write_handler(int fd, const void *buffer, unsigned size);
 static void seek_handler(int fd, unsigned position);
 static unsigned tell_handler(int fd);
 static void close_handler(int fd);
+static int dup2_handler(int oldfd, int newfd);
 /* feat/syscall_handler */
 
 /* System call.
@@ -108,6 +110,9 @@ void syscall_handler(struct intr_frame *f) {
         case SYS_CLOSE:  // syscall_num 13
             close_handler(f->R.rdi);
             break;
+        case SYS_DUP2:
+            f->R.rax = dup2_handler(f->R.rdi, f->R.rsi);
+            break;
 
         default:
             printf("system call!\n");
@@ -124,12 +129,6 @@ void syscall_handler(struct intr_frame *f) {
  * @see
  * https://www.notion.so/jactio/write_handler-233c9595474e804f998de012a4d9a075?source=copy_link#233c9595474e80b8bcd0e4ab9d1fa96c
  */
-static struct File *get_file_from_fd(int fd) {
-    if (get_user((thread_current()->fdt + fd)) == (int64_t)-1) {
-        return NULL;
-    }
-    return thread_current()->fdt[fd];
-}
 
 static void halt_handler(void) {
     power_off();
@@ -277,7 +276,7 @@ static int write_handler(int fd, const void *buffer,
 static void seek_handler(int fd, unsigned position) {
     struct File *get_file = get_file_from_fd(fd);
     if (get_file == NULL || seek_file(get_file, position) == -1) {
-        exit_handler(-1);
+        // exit_handler(-1);
     }
 }
 
@@ -285,7 +284,7 @@ static void seek_handler(int fd, unsigned position) {
 static unsigned tell_handler(int fd) {
     struct File *get_file = get_file_from_fd(fd);
     int64_t result;
-    if (get_file == NULL || (result = tell_handler(get_file)) == -1) {
+    if (get_file == NULL || (result = tell_file(get_file)) == -1) {
         exit_handler(-1);
     }
     return (unsigned)result;
@@ -298,4 +297,8 @@ static void close_handler(int fd) {
         exit_handler(-1);
         NOT_REACHED();
     }
+}
+
+int dup2_handler(int oldfd, int newfd) {
+    return dup2_fd(oldfd, newfd);
 }
