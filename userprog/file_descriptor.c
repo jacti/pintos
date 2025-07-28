@@ -56,14 +56,16 @@ int set_n_fd(struct File *file, size_t n) {
             return -1;
         }
     }
-    remove_fd(n);
+    if (remove_fd(n) == -1) {
+        return -1;
+    }
     cur->fdt[n] = file;
     cur->open_file_cnt += 1;
     return n;
 }
 
 static int _remove_fd(int fd, struct thread *t) {
-    int result = -1;
+    int result = -2;
     if (!is_user_accesable((struct File **)(t->fdt + fd), 8, P_KERNEL | P_WRITE)) {
         return -1;
     }
@@ -127,10 +129,8 @@ static int remove_if_duplicated(int fd) {
 }
 
 int init_fd(struct thread *t) {
-    if (_set_fd(init_stdin(), t) == -1) {
-        return -1;
-    }
-    if (_set_fd(init_stdout(), t) == -1) {
+    if (_set_fd(init_stdin(), t) == -1 || _set_fd(init_stdout(), t) == -1) {
+        clear_fdt(t);
         return -1;
     }
     return 0;
@@ -144,15 +144,19 @@ struct File *get_file_from_fd(int fd) {
 }
 
 void clear_fdt(struct thread *t) {
+    int log = 0;
     if (t->fdt != NULL && t->fd_pg_cnt != 0) {
         for (int i = 0; (t->open_file_cnt > 0); i++) {
             barrier();
             if (_remove_fd(i, t) == -1) {
                 break;
             }
+            log++;
         }
         palloc_free_multiple(t->fdt, t->fd_pg_cnt);
     }
+    printf("clear : %s ,real remove count : %d , pg_cnt : %d, open_cnt : %d\n", t->name, log,
+           t->fd_pg_cnt, t->open_file_cnt);
     t->open_file_cnt = 0;
     t->fdt = NULL;
     t->fd_pg_cnt = 0;
@@ -168,11 +172,13 @@ int fork_fdt(struct thread *parent, struct thread *child) {
     bool dup_finish = false;
     if ((child->fdt = palloc_get_multiple(PAL_ZERO, child->fd_pg_cnt)) == NULL) {
         child->fd_pg_cnt = 0;
+        printf("fdt allocate failed\n");
         return -1;
     }
     int buff_page_cnt = child->fd_pg_cnt / 4 + 1;
     int *buffer = palloc_get_multiple(PAL_ZERO, buff_page_cnt);
     if (buffer == NULL) {
+        printf("buffer allocate failed\n");
         palloc_free_multiple(child->fdt, child->fd_pg_cnt);
         child->fd_pg_cnt = 0;
         return -1;
@@ -199,6 +205,7 @@ int fork_fdt(struct thread *parent, struct thread *child) {
             if (child->fdt[i] == NULL) {
                 child->open_file_cnt--;
                 palloc_free_multiple(buffer, buff_page_cnt);
+                printf("pte duplicate failed : %d\n", child->open_file_cnt);
                 return -1;
             }
         }

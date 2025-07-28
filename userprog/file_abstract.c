@@ -89,6 +89,8 @@ off_t tell_file(struct File* file) {
 }
 
 int close_file(struct File* file) {
+    ASSERT(file != NULL);
+    ASSERT(file->dup > 0);
     if (--file->dup == 0) {
         switch (file->type) {
             case FILE:
@@ -105,6 +107,7 @@ int close_file(struct File* file) {
                 return 0;
 
             default:
+                free(file);
                 return -1;
         }
     }

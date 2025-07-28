@@ -171,9 +171,10 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
 
     /* 3. Allocate new PAL_USER page for the child and set result to
      *    NEWPAGE. */
-    if ((newpage = pml4_get_page(current->pml4, va)) == NULL) {
-        newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    if ((newpage = pml4_get_page(current->pml4, va)) != NULL) {
+        palloc_free_page(newpage);
     }
+    newpage = palloc_get_page(PAL_USER | PAL_ZERO);
     if (newpage == NULL) {
         return false;
     }
@@ -248,8 +249,10 @@ static void __do_fork(void *aux) {
     if (!supplemental_page_table_copy(&current->spt, &parent->spt))
         goto error;
 #else
-    if (parent->pml4 && !pml4_for_each(parent->pml4, duplicate_pte, parent))
+    if (parent->pml4 && !pml4_for_each(parent->pml4, duplicate_pte, parent)) {
+        printf("duplicate_ pte_error \n");
         goto error;
+    }
 #endif
 
     /* TODO: Your code goes here.
@@ -261,6 +264,8 @@ static void __do_fork(void *aux) {
     if (fork_fdt(parent, current) == -1) {
         goto error;
     }
+    printf("fork : %s , pg_cnt : %d, open_cnt : %d\n", current->name, current->fd_pg_cnt,
+           current->open_file_cnt);
 
     process_init();
 
@@ -275,6 +280,7 @@ static void __do_fork(void *aux) {
 error:
     free(fork_data);
     current->exit_status = -1;
+    sema_up(&(current->parent->fork_sema));
     thread_exit();
 }
 
@@ -343,6 +349,7 @@ int process_wait(tid_t child_tid) {
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
     struct thread *cur = thread_current();
+    printf("%s , pg_cnt : %d, open_cnt : %d\n", cur->name, cur->fd_pg_cnt, cur->open_file_cnt);
     clear_fdt(cur);
     bool is_user = is_user_thread();
     process_cleanup();
