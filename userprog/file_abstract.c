@@ -140,7 +140,7 @@ struct File* duplicate_file(struct File* file) {
         return NULL;
     }
     new_file->type = file->type;
-    new_file->dup = file->dup;
+    new_file->dup = 1;
     return new_file;
 }
 

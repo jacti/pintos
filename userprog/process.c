@@ -250,7 +250,6 @@ static void __do_fork(void *aux) {
         goto error;
 #else
     if (parent->pml4 && !pml4_for_each(parent->pml4, duplicate_pte, parent)) {
-        printf("duplicate_ pte_error \n");
         goto error;
     }
 #endif
@@ -264,8 +263,6 @@ static void __do_fork(void *aux) {
     if (fork_fdt(parent, current) == -1) {
         goto error;
     }
-    printf("fork : %s , pg_cnt : %d, open_cnt : %d\n", current->name, current->fd_pg_cnt,
-           current->open_file_cnt);
 
     process_init();
 
@@ -349,7 +346,6 @@ int process_wait(tid_t child_tid) {
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
     struct thread *cur = thread_current();
-    printf("%s , pg_cnt : %d, open_cnt : %d\n", cur->name, cur->fd_pg_cnt, cur->open_file_cnt);
     clear_fdt(cur);
     bool is_user = is_user_thread();
     process_cleanup();
