@@ -10,7 +10,7 @@ lg-seq-random PASS
 syn-write PASS
 syn-remove PASS
 priority-donate-one PASS
-dup2-simple FAIL
+dup2-simple PASS
 create-normal PASS
 priority-donate-lower PASS
 bad-write PASS
