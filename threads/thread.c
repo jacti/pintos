@@ -215,7 +215,11 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
     t->tf.cs = SEL_KCSEG;
     t->tf.eflags = FLAG_IF;
 
-    init_fd(t);
+    // TODO : 할당 안됐을 때 조치
+    if (init_fd(t) == -1) {
+        palloc_free_page(t);
+        return -1;
+    }
 
     /* Add to run queue. */
     thread_unblock(t);

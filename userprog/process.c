@@ -66,7 +66,7 @@ tid_t process_create_initd(const char *file_name) {
     char *fn_copy;
     tid_t tid;
     struct init_data init_data;
-    struct thread *t = thread_current();
+    struct thread *main_thread = thread_current();
 
     /* Make a copy of FILE_NAME.
      * Otherwise there's a race between the caller and load(). */
@@ -75,16 +75,18 @@ tid_t process_create_initd(const char *file_name) {
         return TID_ERROR;
     strlcpy(fn_copy, file_name, PGSIZE);
     init_data.file_name = fn_copy;
-    init_data.parent = t;
+    init_data.parent = main_thread;
 
     char *saveptr = NULL;
     char *file_cut = strtok_r(file_name, " ", &saveptr);
 
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create(file_cut, PRI_DEFAULT, initd, &init_data);
-    sema_down(&t->wait_sema);
     if (tid == TID_ERROR)
         palloc_free_page(fn_copy);
+    else {
+        sema_down(&main_thread->fork_sema);
+    }
     return tid;
 }
 
@@ -96,10 +98,11 @@ static void initd(void *init_data_) {
     process_init();
     struct init_data *init_data = (struct init_data *)init_data_;
     struct thread *t = thread_current();
+    const char *file_name = init_data->file_name;
     t->parent = init_data->parent;
     list_push_back(&t->parent->childs, &t->sibling_elem);
-    sema_up(&t->parent->wait_sema);
-    if (process_exec(init_data->file_name) < 0)
+    sema_up(&t->parent->fork_sema);
+    if (process_exec(file_name) < 0)
         PANIC("Fail to launch initd\n");
     NOT_REACHED();
 }
@@ -168,7 +171,7 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
 
     /* 3. Allocate new PAL_USER page for the child and set result to
      *    NEWPAGE. */
-    if (newpage = pml4_get_page(current->pml4, va) == NULL) {
+    if ((newpage = pml4_get_page(current->pml4, va)) == NULL) {
         newpage = palloc_get_page(PAL_USER | PAL_ZERO);
     }
     if (newpage == NULL) {
@@ -179,7 +182,6 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
      *    check whether parent's page is writable or not (set WRITABLE
      *    according to the result). */
     writable = is_writable(pte);
-    pml4_set_page(current->pml4, (uint8_t *)pg_round_down(va), newpage, writable);
     memcpy(newpage, parent_page, PGSIZE);
 
     /* 5. Add new page to child's page table at address VA with WRITABLE

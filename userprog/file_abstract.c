@@ -116,13 +116,12 @@ struct File* duplicate_file(struct File* file) {
     switch (file->type) {
         case FILE:
             new_file = calloc(1, sizeof(struct File));
-            if (new_file == NULL) {
-                return NULL;
-            }
-            new_file->file_ptr = file_duplicate(file->file_ptr);
-            if (new_file->file_ptr == NULL) {
-                free(new_file);
-                return NULL;
+            if (new_file) {
+                new_file->file_ptr = file_duplicate(file->file_ptr);
+                if (new_file->file_ptr == NULL) {
+                    free(new_file);
+                    new_file = NULL;
+                }
             }
             break;
         case STDIN:
@@ -133,6 +132,9 @@ struct File* duplicate_file(struct File* file) {
             break;
         default:
             break;
+    }
+    if (new_file == NULL) {
+        return NULL;
     }
     new_file->type = file->type;
     new_file->dup = file->dup;
@@ -170,6 +172,9 @@ bool is_same_file(struct File* a, struct File* b) {
 
 struct File* init_stdin() {
     struct File* stdin_ = calloc(1, sizeof(struct File));
+    if (stdin_ == NULL) {
+        return NULL;
+    }
     stdin_->dup = 1;
     stdin_->file_ptr = NULL;
     stdin_->type = STDIN;
@@ -177,6 +182,9 @@ struct File* init_stdin() {
 };
 struct File* init_stdout() {
     struct File* stdout_ = calloc(1, sizeof(struct File));
+    if (stdout_ == NULL) {
+        return NULL;
+    }
     stdout_->dup = 1;
     stdout_->file_ptr = NULL;
     stdout_->type = STDOUT;

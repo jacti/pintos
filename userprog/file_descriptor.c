@@ -51,7 +51,7 @@ int set_fd(struct File *file) {
 
 int set_n_fd(struct File *file, size_t n) {
     struct thread *cur = thread_current();
-    if (!is_user_accesable(cur->fdt + n, 8, P_KERNEL | P_WRITE)) {
+    if (!is_user_accesable((struct File **)(cur->fdt + n), 8, P_KERNEL | P_WRITE)) {
         if (_extend_fdt(cur, (n >> (PGBITS - 3)) + 1) == -1) {
             return -1;
         }
@@ -64,15 +64,16 @@ int set_n_fd(struct File *file, size_t n) {
 
 static int _remove_fd(int fd, struct thread *t) {
     int result = -1;
-    if (!is_user_accesable(t->fdt + fd, 8, P_KERNEL | P_WRITE)) {
+    if (!is_user_accesable((struct File **)(t->fdt + fd), 8, P_KERNEL | P_WRITE)) {
         return -1;
     }
-    if (t->fdt[fd] != NULL) {
-        close_file(t->fdt[fd]);
+    struct File *removed_fd = t->fdt[fd];
+    t->fdt[fd] = NULL;
+    if (removed_fd != NULL) {
+        close_file(removed_fd);
         t->open_file_cnt -= 1;
         result = fd;
     }
-    t->fdt[fd] = NULL;
     return result;
 }
 
@@ -92,8 +93,11 @@ int dup2_fd(size_t oldfd, size_t newfd) {
         return -1;
     }
 
-    get_file->dup++;
-    return set_n_fd(get_file, newfd);
+    int result;
+    if ((result = set_n_fd(get_file, newfd)) != -1) {
+        get_file->dup++;
+    }
+    return result;
 }
 
 static int remove_if_duplicated(int fd) {
@@ -140,13 +144,16 @@ struct File *get_file_from_fd(int fd) {
 }
 
 void clear_fdt(struct thread *t) {
-    if (t->fd_pg_cnt != 0) {
-        for (int i = 0; t->open_file_cnt > 0; i++) {
+    if (t->fdt != NULL && t->fd_pg_cnt != 0) {
+        for (int i = 0; (t->open_file_cnt > 0); i++) {
             barrier();
-            _remove_fd(i, t);
+            if (_remove_fd(i, t) == -1) {
+                break;
+            }
         }
         palloc_free_multiple(t->fdt, t->fd_pg_cnt);
     }
+    t->open_file_cnt = 0;
     t->fdt = NULL;
     t->fd_pg_cnt = 0;
 }
@@ -160,10 +167,16 @@ int fork_fdt(struct thread *parent, struct thread *child) {
     int n = 0;
     bool dup_finish = false;
     if ((child->fdt = palloc_get_multiple(PAL_ZERO, child->fd_pg_cnt)) == NULL) {
+        child->fd_pg_cnt = 0;
         return -1;
     }
     int buff_page_cnt = child->fd_pg_cnt / 4 + 1;
     int *buffer = palloc_get_multiple(PAL_ZERO, buff_page_cnt);
+    if (buffer == NULL) {
+        palloc_free_multiple(child->fdt, child->fd_pg_cnt);
+        child->fd_pg_cnt = 0;
+        return -1;
+    }
     for (int i = 0; child->open_file_cnt < parent->open_file_cnt; i++) {
         if (parent->fdt[i] != NULL) {
             child->open_file_cnt++;
@@ -184,6 +197,7 @@ int fork_fdt(struct thread *parent, struct thread *child) {
             }
             child->fdt[i] = duplicate_file(parent->fdt[i]);
             if (child->fdt[i] == NULL) {
+                child->open_file_cnt--;
                 palloc_free_multiple(buffer, buff_page_cnt);
                 return -1;
             }

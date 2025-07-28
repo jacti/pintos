@@ -89,7 +89,7 @@ syn-remove | --fs-disk=10 -p tests/filesys/base/syn-remove:syn-remove | -q   -f 
 syn-write | --fs-disk=10 -p tests/filesys/base/syn-write:syn-write -p tests/filesys/base/child-syn-wrt:child-syn-wrt | -q   -f run | 'syn-write' | tests/filesys/base
 
 [userprog/no-vm]
-multi-oom | --fs-disk=10 -p tests/userprog/no-vm/multi-oom:multi-oom | -q   -f run | 'multi-oom' | tests/userprog/no-vm
+multi-oom | -T 600 -k -v -m 20 -m 20 --fs-disk=10 -p tests/userprog/no-vm/multi-oom:multi-oom | -q   -f run | 'multi-oom' | tests/userprog/no-vm
 
 [userprog/dup2]
 dup2-complex | --fs-disk=10 -p tests/userprog/dup2/dup2-complex:dup2-complex -p ../../tests/userprog/dup2/sample.txt:sample.txt | -q   -f run | 'dup2-complex' | tests/userprog/dup2
