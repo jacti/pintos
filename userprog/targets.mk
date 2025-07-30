@@ -7,3 +7,5 @@ userprog_SRC += userprog/tss.c		# TSS management.
 userprog_SRC += userprog/file_abstract.c	# FILE absraction
 userprog_SRC += userprog/check_perm.c		# check_permission
 userprog_SRC += userprog/file_descriptor.c		# file_descriptor
+userprog_SRC += userprog/process_impl.c		# process_impl
+userprog_SRC += userprog/load.c		# load
