@@ -18,7 +18,7 @@ open-twice PASS
 exec-arg PASS
 exec-missing PASS
 read-bad-ptr PASS
-dup2-complex FAIL
+dup2-complex PASS
 create-long PASS
 priority-preempt PASS
 fork-close PASS
@@ -65,7 +65,7 @@ fork-recursive PASS
 open-bad-ptr PASS
 write-normal PASS
 bad-read PASS
-multi-oom FAIL
+multi-oom PASS
 fork-once PASS
 priority-change PASS
 write-boundary PASS

@@ -29,6 +29,10 @@
 #include "vm/vm.h"
 #endif
 
+/* Global lock for exec operations to prevent race conditions */
+static struct lock exec_lock;
+static bool exec_lock_initialized = false;
+
 static void process_cleanup(void);
 static bool load(const char *file_name, char *args, struct intr_frame *if_);
 static void initd(void *f_name);
@@ -55,6 +59,11 @@ struct init_data {
 /* General process initializer for initd and other process. */
 static void process_init(void) {
     struct thread *current = thread_current();
+    /* Initialize exec lock if not already initialized */
+    if (!exec_lock_initialized) {
+        lock_init(&exec_lock);
+        exec_lock_initialized = true;
+    }
 }
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
@@ -301,14 +310,21 @@ int process_exec(void *f_name) {
     /* We first kill the current context */
     process_cleanup();
 
+    /* Acquire exec lock to prevent race conditions during file loading */
+    lock_acquire(&exec_lock);
+    
     /* And then load the binary */
     success = load(file_name, args, &_if);
-    /* If load failed, quit. */
-    palloc_free_page(f_name);
+    
+    /* Release exec lock */
+    lock_release(&exec_lock);
+
     if (!success) {
         thread_current()->exit_status = -1;
         thread_exit();
     }
+
+    palloc_free_page(f_name);
 
     /* Start switched process. */
     do_iret(&_if);

@@ -4,19 +4,37 @@
 #include "threads/malloc.h"
 #include "userprog/check_perm.h"
 #include "userprog/file_abstract.h"
+#include "threads/synch.h"
+
+/* Global lock for file operations to prevent race conditions */
+static struct lock file_lock;
+static bool file_lock_initialized = false;
 
 struct File* open_file(const char* name) {
+    // Initialize file lock if not already initialized
+    if (!file_lock_initialized) {
+        lock_init(&file_lock);
+        file_lock_initialized = true;
+    }
+
+    // Acquire file lock to prevent race conditions
+    lock_acquire(&file_lock);
+
     // 추후 디렉토리 오픈도 구분해서 추가
     struct File* file = calloc(1, sizeof(struct File));
     struct file* _file = filesys_open(name);
     if (_file == NULL) {
         free(file);
+        lock_release(&file_lock);
         return NULL;
     }
 
     file->file_ptr = _file;
     file->type = FILE;
     file->dup = 1;
+
+    // Release file lock
+    lock_release(&file_lock);
     return file;
 }
 
