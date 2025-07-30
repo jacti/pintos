@@ -4,21 +4,37 @@
 #include "threads/malloc.h"
 #include "userprog/check_perm.h"
 #include "userprog/file_abstract.h"
+#include "threads/synch.h"
 
-struct File STDIN_FILE = {.type = STDIN, .file_ptr = NULL};
-struct File STDOUT_FILE = {.type = STDOUT, .file_ptr = NULL};
+/* Global lock for file operations to prevent race conditions */
+static struct lock file_lock;
+static bool file_lock_initialized = false;
 
 struct File* open_file(const char* name) {
+    // Initialize file lock if not already initialized
+    if (!file_lock_initialized) {
+        lock_init(&file_lock);
+        file_lock_initialized = true;
+    }
+
+    // Acquire file lock to prevent race conditions
+    lock_acquire(&file_lock);
+
     // 추후 디렉토리 오픈도 구분해서 추가
     struct File* file = calloc(1, sizeof(struct File));
     struct file* _file = filesys_open(name);
     if (_file == NULL) {
         free(file);
+        lock_release(&file_lock);
         return NULL;
     }
 
     file->file_ptr = _file;
     file->type = FILE;
+    file->dup = 1;
+
+    // Release file lock
+    lock_release(&file_lock);
     return file;
 }
 
@@ -91,15 +107,29 @@ off_t tell_file(struct File* file) {
 }
 
 int close_file(struct File* file) {
-    switch (file->type) {
-        case FILE:
-            file_close(file->file_ptr);
-            free(file);
-            return 0;
+    ASSERT(file != NULL);
+    ASSERT(file->dup > 0);
+    if (--file->dup == 0) {
+        switch (file->type) {
+            case FILE:
+                file_close(file->file_ptr);
+                free(file);
+                return 0;
 
-        default:
-            return -1;
+            case STDIN:
+                free(file);
+                return 0;
+
+            case STDOUT:
+                free(file);
+                return 0;
+
+            default:
+                free(file);
+                return -1;
+        }
     }
+    return file->dup;
 }
 
 struct File* duplicate_file(struct File* file) {
@@ -107,18 +137,28 @@ struct File* duplicate_file(struct File* file) {
     switch (file->type) {
         case FILE:
             new_file = calloc(1, sizeof(struct File));
-            new_file->file_ptr = file_duplicate(file->file_ptr);
+            if (new_file) {
+                new_file->file_ptr = file_duplicate(file->file_ptr);
+                if (new_file->file_ptr == NULL) {
+                    free(new_file);
+                    new_file = NULL;
+                }
+            }
             break;
         case STDIN:
-            new_file = &STDIN_FILE;
+            new_file = init_stdin();
             break;
         case STDOUT:
-            new_file = &STDOUT_FILE;
+            new_file = init_stdout();
             break;
         default:
             break;
     }
+    if (new_file == NULL) {
+        return NULL;
+    }
     new_file->type = file->type;
+    new_file->dup = 1;
     return new_file;
 }
 
@@ -137,3 +177,37 @@ bool is_file_writable(struct File* file) {
             return false;
     }
 }
+
+bool is_same_file(struct File* a, struct File* b) {
+    if (a->type != b->type) {
+        return false;
+    }
+    switch (a->type) {
+        case FILE:
+            return (a->file_ptr->inode == b->file_ptr->inode);
+
+        default:
+            return true;
+    }
+}
+
+struct File* init_stdin() {
+    struct File* stdin_ = calloc(1, sizeof(struct File));
+    if (stdin_ == NULL) {
+        return NULL;
+    }
+    stdin_->dup = 1;
+    stdin_->file_ptr = NULL;
+    stdin_->type = STDIN;
+    return stdin_;
+};
+struct File* init_stdout() {
+    struct File* stdout_ = calloc(1, sizeof(struct File));
+    if (stdout_ == NULL) {
+        return NULL;
+    }
+    stdout_->dup = 1;
+    stdout_->file_ptr = NULL;
+    stdout_->type = STDOUT;
+    return stdout_;
+};

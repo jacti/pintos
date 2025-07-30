@@ -1,16 +1,16 @@
 #ifndef USERPROG_FILE_ABSTRACT_H
 #define USERPROG_FILE_ABSTRACT_H
 
+#include <stddef.h>
+
 #include "filesys/file.h"
 
 enum file_type { STDIN, STDOUT, FILE, DIRECTORY };
 struct File {
     enum file_type type;
     struct file* file_ptr;
+    size_t dup;
 };
-
-extern struct File STDIN_FILE;
-extern struct File STDOUT_FILE;
 
 /**
  * @brief 주어진 경로의 파일을 열어 File 객체를 생성합니다.
@@ -114,5 +114,10 @@ int close_file(struct File* file);
 struct File* duplicate_file(struct File* file);
 
 bool is_file_writable(struct File* file);
+
+bool is_same_file(struct File* a, struct File* b);
+
+struct File* init_stdin();
+struct File* init_stdout();
 
 #endif /* USERPROG_FILE_ABSTRACT_H */

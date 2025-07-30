@@ -10,7 +10,7 @@ lg-seq-random PASS
 syn-write PASS
 syn-remove PASS
 priority-donate-one PASS
-dup2-simple FAIL
+dup2-simple PASS
 create-normal PASS
 priority-donate-lower PASS
 bad-write PASS
@@ -18,7 +18,7 @@ open-twice PASS
 exec-arg PASS
 exec-missing PASS
 read-bad-ptr PASS
-dup2-complex FAIL
+dup2-complex PASS
 create-long PASS
 priority-preempt PASS
 fork-close PASS
@@ -65,7 +65,7 @@ fork-recursive PASS
 open-bad-ptr PASS
 write-normal PASS
 bad-read PASS
-multi-oom FAIL
+multi-oom PASS
 fork-once PASS
 priority-change PASS
 write-boundary PASS

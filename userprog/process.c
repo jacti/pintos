@@ -21,11 +21,17 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/check_perm.h"
+#include "userprog/file_descriptor.h"
 #include "userprog/gdt.h"
 #include "userprog/tss.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
+
+/* Global lock for exec operations to prevent race conditions */
+static struct lock exec_lock;
+static bool exec_lock_initialized = false;
 
 static void process_cleanup(void);
 static bool load(const char *file_name, char *args, struct intr_frame *if_);
@@ -53,6 +59,11 @@ struct init_data {
 /* General process initializer for initd and other process. */
 static void process_init(void) {
     struct thread *current = thread_current();
+    /* Initialize exec lock if not already initialized */
+    if (!exec_lock_initialized) {
+        lock_init(&exec_lock);
+        exec_lock_initialized = true;
+    }
 }
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
@@ -64,7 +75,7 @@ tid_t process_create_initd(const char *file_name) {
     char *fn_copy;
     tid_t tid;
     struct init_data init_data;
-    struct thread *t = thread_current();
+    struct thread *main_thread = thread_current();
 
     /* Make a copy of FILE_NAME.
      * Otherwise there's a race between the caller and load(). */
@@ -73,16 +84,18 @@ tid_t process_create_initd(const char *file_name) {
         return TID_ERROR;
     strlcpy(fn_copy, file_name, PGSIZE);
     init_data.file_name = fn_copy;
-    init_data.parent = t;
+    init_data.parent = main_thread;
 
     char *saveptr = NULL;
     char *file_cut = strtok_r(file_name, " ", &saveptr);
 
     /* Create a new thread to execute FILE_NAME. */
     tid = thread_create(file_cut, PRI_DEFAULT, initd, &init_data);
-    sema_down(&t->wait_sema);
     if (tid == TID_ERROR)
         palloc_free_page(fn_copy);
+    else {
+        sema_down(&main_thread->fork_sema);
+    }
     return tid;
 }
 
@@ -94,10 +107,11 @@ static void initd(void *init_data_) {
     process_init();
     struct init_data *init_data = (struct init_data *)init_data_;
     struct thread *t = thread_current();
+    const char *file_name = init_data->file_name;
     t->parent = init_data->parent;
     list_push_back(&t->parent->childs, &t->sibling_elem);
-    sema_up(&t->parent->wait_sema);
-    if (process_exec(init_data->file_name) < 0)
+    sema_up(&t->parent->fork_sema);
+    if (process_exec(file_name) < 0)
         PANIC("Fail to launch initd\n");
     NOT_REACHED();
 }
@@ -136,6 +150,13 @@ tid_t process_fork(const char *name, struct intr_frame *if_) {
     }
 
     sema_down(&curr->fork_sema);
+    if (list_empty(&curr->childs)) {
+        return -1;
+    }
+    struct thread *t = list_entry(list_back(&curr->childs), struct thread, sibling_elem);
+    if (t->exit_status == -1) {
+        return -1;
+    }
     return tid;
 }
 
@@ -159,9 +180,10 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
 
     /* 3. Allocate new PAL_USER page for the child and set result to
      *    NEWPAGE. */
-    if (newpage = pml4_get_page(current->pml4, va) == NULL) {
-        newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    if ((newpage = pml4_get_page(current->pml4, va)) != NULL) {
+        palloc_free_page(newpage);
     }
+    newpage = palloc_get_page(PAL_USER | PAL_ZERO);
     if (newpage == NULL) {
         return false;
     }
@@ -170,7 +192,6 @@ static bool duplicate_pte(uint64_t *pte, void *va, void *aux) {
      *    check whether parent's page is writable or not (set WRITABLE
      *    according to the result). */
     writable = is_writable(pte);
-    pml4_set_page(current->pml4, (uint8_t *)pg_round_down(va), newpage, writable);
     memcpy(newpage, parent_page, PGSIZE);
 
     /* 5. Add new page to child's page table at address VA with WRITABLE
@@ -237,8 +258,9 @@ static void __do_fork(void *aux) {
     if (!supplemental_page_table_copy(&current->spt, &parent->spt))
         goto error;
 #else
-    if (parent->pml4 && !pml4_for_each(parent->pml4, duplicate_pte, parent))
+    if (parent->pml4 && !pml4_for_each(parent->pml4, duplicate_pte, parent)) {
         goto error;
+    }
 #endif
 
     /* TODO: Your code goes here.
@@ -247,36 +269,24 @@ static void __do_fork(void *aux) {
      * TODO:       from the fork() until this function successfully duplicates
      * TODO:       the resources of parent.*/
     // 부모의 파일 디스크립터 테이블 복사
-    current->fd_pg_cnt = parent->fd_pg_cnt;
-    current->open_file_cnt = 0;
-
-    ASSERT(current->fdt != NULL);
-    if (current->fd_pg_cnt != 0) {
-        palloc_free_page(current->fdt);
-        current->fdt = palloc_get_multiple(PAL_ZERO, current->fd_pg_cnt);
-        if (current->fdt == NULL) {
-            goto error;
-        }
-
-        for (int i = 0; current->open_file_cnt < parent->open_file_cnt; i++) {
-            if (parent->fdt[i] != NULL) {
-                current->fdt[i] = duplicate_file(parent->fdt[i]);
-                current->open_file_cnt++;
-            }
-        }
+    if (fork_fdt(parent, current) == -1) {
+        goto error;
     }
 
     process_init();
 
     free(fork_data);
-    sema_up(&(current->parent->fork_sema));
     if_.R.rax = 0;  // 자식 rax 초기화
 
     /* Finally, switch to the newly created process. */
-    if (succ)
+    if (succ) {
+        sema_up(&(current->parent->fork_sema));
         do_iret(&if_);
+    }
 error:
     free(fork_data);
+    current->exit_status = -1;
+    sema_up(&(current->parent->fork_sema));
     thread_exit();
 }
 
@@ -300,14 +310,21 @@ int process_exec(void *f_name) {
     /* We first kill the current context */
     process_cleanup();
 
+    /* Acquire exec lock to prevent race conditions during file loading */
+    lock_acquire(&exec_lock);
+    
     /* And then load the binary */
     success = load(file_name, args, &_if);
-    /* If load failed, quit. */
-    palloc_free_page(f_name);
+    
+    /* Release exec lock */
+    lock_release(&exec_lock);
+
     if (!success) {
         thread_current()->exit_status = -1;
         thread_exit();
     }
+
+    palloc_free_page(f_name);
 
     /* Start switched process. */
     do_iret(&_if);
@@ -345,23 +362,20 @@ int process_wait(tid_t child_tid) {
 /* Exit the process. This function is called by thread_exit (). */
 void process_exit(void) {
     struct thread *cur = thread_current();
-    if (cur->fd_pg_cnt != 0) {
-        for (int i = 0; cur->open_file_cnt > 0; i++) {
-            if (cur->fdt[i] != NULL) {
-                close_file(cur->fdt[i]);
-                cur->open_file_cnt--;
-            }
-        }
-        palloc_free_multiple(cur->fdt, cur->fd_pg_cnt);
-    }
+    clear_fdt(cur);
+    bool is_user = is_user_thread();
+    process_cleanup();
     if (cur->parent != NULL) {
-        if (is_user_thread()) {
+        if (is_user) {
             printf("%s: exit(%d)\n", cur->name, cur->exit_status);
+        }
+        if (list_back(&cur->parent->childs) == &(cur->sibling_elem) &&
+            !list_empty(&cur->parent->fork_sema.waiters)) {
+            sema_up(&cur->parent->fork_sema);
         }
         sema_up(&cur->wait_sema);
         sema_down(&cur->exit_sema);
     }
-    process_cleanup();
 }
 
 /* Free the current process's resources. */
@@ -583,10 +597,12 @@ static bool load(const char *file_name, char *args, struct intr_frame *if_) {
     if_->R.rdi = argc;
     //  feat/arg-parse
 
-    if (!is_file_writable(file_a)) {
-        file_deny_write(file_a->file_ptr);
+    file_deny_write(file_a->file_ptr);
+    int fd = set_fd(file_a);
+    if (fd == -1) {
+        goto done;
     }
-    set_fd(file_a);
+    // remove_if_duplicated(fd);
     success = true;
 done:
     return success;

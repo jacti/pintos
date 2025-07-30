@@ -235,6 +235,4 @@ void priority_update(void);
 bool is_user_thread(void);
 // feat/process-wait
 
-int set_fd(struct File *file);
-
 #endif /* threads/thread.h */
