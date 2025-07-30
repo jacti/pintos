@@ -15,6 +15,8 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 
+#include "userprog/check_perm.h"
+#include "userprog/file_descriptor.h"
 #include "userprog/process.h"
 #endif
 
@@ -61,8 +63,6 @@ bool thread_mlfqs;
 //$Add/MLFQ_thread_elem
 static fixed_t load_avg; /** @brief 전역변수: 부하 평균량  */
 // Add/MLFQ_thread_elem
-
-static int _set_fd(struct File *file, struct thread *t);
 
 static void kernel_thread(thread_func *, void *aux);
 
@@ -215,8 +215,11 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void 
     t->tf.cs = SEL_KCSEG;
     t->tf.eflags = FLAG_IF;
 
-    _set_fd(&STDIN_FILE, t);
-    _set_fd(&STDOUT_FILE, t);
+    // TODO : 할당 안됐을 때 조치
+    if (init_fd(t) == -1) {
+        palloc_free_page(t);
+        return -1;
+    }
 
     /* Add to run queue. */
     thread_unblock(t);
@@ -609,7 +612,7 @@ static void init_thread(struct thread *t, const char *name, int priority) {
     sema_init(&t->wait_sema, 0);
     sema_init(&t->fork_sema, 0);
     sema_init(&t->exit_sema, 0);
-    t->exit_status = -1;
+    t->exit_status = 0;
     // feat/process-wait
 
 #endif
@@ -887,32 +890,6 @@ void priority_update(void) {
     intr_yield_on_return();
 }
 // test-temp/mlfqs
-
-static int _set_fd(struct File *file, struct thread *t) {
-    if (t->open_file_cnt < t->fd_pg_cnt << (PGBITS - 3)) {
-        for (int i = 0; i < t->fd_pg_cnt << (PGBITS - 3); i++) {
-            if (t->fdt[i] == NULL) {
-                t->fdt[i] = file;
-                t->open_file_cnt++;
-                return i;
-            }
-        }
-    } else {
-        uint64_t *kpage = palloc_get_multiple((PAL_ASSERT | PAL_ZERO), t->fd_pg_cnt + 1);
-        if (t->fd_pg_cnt != 0) {
-            memcpy(t->fdt, kpage, (t->fd_pg_cnt << PGBITS));
-            palloc_free_multiple(t->fdt, t->fd_pg_cnt);
-        }
-        t->fd_pg_cnt++;
-        t->fdt = kpage;
-        t->fdt[t->open_file_cnt++] = file;
-        return t->open_file_cnt - 1;
-    }
-}
-
-int set_fd(struct File *file) {
-    return _set_fd(file, thread_current());
-}
 
 /**
  * @brief 현재 스레드가 사용자 프로세스(유저 스레드)인지 확인한다.

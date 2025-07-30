@@ -73,6 +73,7 @@ static void kill(struct intr_frame *f) {
        exceptions back to the process via signals, but we don't
        implement them. */
 
+    thread_current()->exit_status = -1;
     /* The interrupt frame's code segment value tells us where the
        exception originated. */
     switch (f->cs) {
@@ -89,14 +90,14 @@ static void kill(struct intr_frame *f) {
                Kernel code shouldn't throw exceptions.  (Page faults
                may cause kernel exceptions--but they shouldn't arrive
                here.)  Panic the kernel to make the point.  */
-            intr_dump_frame(f);
-            PANIC("Kernel bug - unexpected interrupt in kernel");
+            // intr_dump_frame(f);
+            // PANIC("Kernel bug - unexpected interrupt in kernel");
 
         default:
             /* Some other code segment?  Shouldn't happen.  Panic the
                kernel. */
-            printf("Interrupt %#04llx (%s) in unknown segment %04x\n", f->vec_no,
-                   intr_name(f->vec_no), f->cs);
+            // printf("Interrupt %#04llx (%s) in unknown segment %04x\n", f->vec_no,
+            //        intr_name(f->vec_no), f->cs);
             thread_exit();
     }
 }
