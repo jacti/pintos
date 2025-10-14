@@ -117,7 +117,7 @@ class Pintos(object):
         if self.no_vga:
             cmd.append('-nographic')
         if self.gdb:
-            cmd.extend(['-s', '-S'])
+            cmd.extend(['-gdb', 'tcp::5678', '-S'])
 
         for idx, d in enumerate(['os', 'fs', 'scratch', 'swap']):
             if self.bdevs.get(d, None):

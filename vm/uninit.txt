@@ -1,0 +1,2 @@
+uninit.c:73:bool copy_uninit_page(struct hash *hash, struct page *dst_page, struct page *src_page) {
+vm.c:352:                if (!copy_uninit_page(&dst->table, dst_page, src_page)) {

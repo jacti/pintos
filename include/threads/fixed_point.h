@@ -2,13 +2,11 @@
 
 /**
  * @brief 고정소수점 식별용 자료형. (원형은 int32_t)
- * 
+ *
  */
 typedef int32_t fixed_t;
 
-
 #define F (1 << 14)
-
 
 /**
  * @brief 정수 n을 고정소수점 fixed_t 타입으로 변환합니다.
@@ -22,7 +20,7 @@ typedef int32_t fixed_t;
  * @param x 변환할 고정소수점 값
  * @return int로 변환된 값 (x / F)
  */
-#define CFTOI(x) ((int) ((x) / F))
+#define CFTOI(x) ((int)((x) / F))
 
 /**
  * @brief 고정소수점 fixed_t 값을 정수로 변환합니다 (반올림).

@@ -1,0 +1,386 @@
+diff --git a/include/threads/palloc.h b/include/threads/palloc.h
+index e76f293..13bb2ac 100644
+--- a/include/threads/palloc.h
++++ b/include/threads/palloc.h
+@@ -13,6 +13,8 @@ enum palloc_flags {
+ 
+ /* Maximum number of pages to put in user pool. */
+ extern size_t user_page_limit;
++extern size_t user_pages;
++extern uintptr_t user_pool_base;
+ 
+ uint64_t palloc_init(void);
+ void *palloc_get_page(enum palloc_flags);
+diff --git a/include/vm/vm.h b/include/vm/vm.h
+index b249a30..0a7a4b1 100644
+--- a/include/vm/vm.h
++++ b/include/vm/vm.h
+@@ -26,13 +26,13 @@ bool page_less(const struct hash_elem *a_, const struct hash_elem *b_, void *aux
+  * uninit_page, file_page, anon_page, and page cache (project4).
+  * DO NOT REMOVE/MODIFY PREDEFINED MEMBER OF THIS STRUCTURE. */
+ struct page {
+-    struct hash_elem hash_elem;
+     const struct page_operations *operations;
+     void *va;            /* Address in terms of user space */
+     struct frame *frame; /* Back reference for frame */
+ 
+     /* Your implementation */
+-
++    bool writable;
++    struct hash_elem hash_elem;
+     /* Per-type data are binded into the union.
+      * Each function automatically detects the current union */
+     union {
+diff --git a/threads/palloc.c b/threads/palloc.c
+index e77f3cf..0262f3d 100644
+--- a/threads/palloc.c
++++ b/threads/palloc.c
+@@ -40,6 +40,9 @@ static struct pool kernel_pool, user_pool;
+ 
+ /* Maximum number of pages to put in user pool. */
+ size_t user_page_limit = SIZE_MAX;
++
++size_t user_pages = 0;
++uintptr_t user_pool_base;
+ static void init_pool(struct pool *p, void **bm_base, uint64_t start, uint64_t end);
+ 
+ static bool page_from_pool(const struct pool *, void *page);
+@@ -124,7 +127,7 @@ static void populate_pools(struct area *base_mem, struct area *ext_mem) {
+     void *free_start = pg_round_up(&_end);
+ 
+     uint64_t total_pages = (base_mem->size + ext_mem->size) / PGSIZE;
+-    uint64_t user_pages = total_pages / 2 > user_page_limit ? user_page_limit : total_pages / 2;
++    user_pages = total_pages / 2 > user_page_limit ? user_page_limit : total_pages / 2;
+     uint64_t kern_pages = total_pages - user_pages;
+ 
+     // Parse E820 map to claim the memory region for each pool.
+@@ -186,6 +189,7 @@ static void populate_pools(struct area *base_mem, struct area *ext_mem) {
+ 
+     // generate the user pool
+     init_pool(&user_pool, &free_start, region_start, end);
++    user_pool_base = user_pool.base;
+ 
+     // Iterate over the e820_entry. Setup the usable.
+     uint64_t usable_bound = (uint64_t)free_start;
+diff --git a/threads/thread.c b/threads/thread.c
+index e2d8843..9ecf29c 100644
+--- a/threads/thread.c
++++ b/threads/thread.c
+@@ -224,6 +224,8 @@ tid_t thread_create(const char *name, int priority, thread_func *function, void
+         return -1;
+     }
+ 
++    hash_init(&t->spt, page_hash, page_less, NULL);
++
+     /* Add to run queue. */
+     thread_unblock(t);
+ 
+@@ -621,7 +623,6 @@ static void init_thread(struct thread *t, const char *name, int priority) {
+ #endif
+     // ADD/write_handler
+     // SPT 초기화, 프로세스별로 SPT를 가지고 있어야 하니까  init_thread에서 초기화
+-    hash_init(&t->spt, page_hash, page_less, NULL);
+ 
+     t->magic = THREAD_MAGIC;
+ 
+diff --git a/userprog/load.c b/userprog/load.c
+index 79921d5..62b8aa6 100644
+--- a/userprog/load.c
++++ b/userprog/load.c
+@@ -13,6 +13,10 @@
+ #include "userprog/process.h"
+ #include "userprog/process_impl.h"
+ 
++#ifdef VM
++#include "vm/vm.h"
++#endif
++
+ // vm 때 include 오류나면 해제할 것
+ //  #include "filesys/directory.h"
+ //  #include "filesys/file.h"
+@@ -512,12 +516,12 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t
+         struct file_meta *file_meta = malloc(sizeof *file_meta);  // malloc으로 생성, pop 시 사라짐
+         file_meta->file = file;
+         file_meta->ofs = ofs;
+-        file_meta->read_bytes = read_bytes;
+-        file_meta->zero_bytes = zero_bytes;
++        file_meta->read_bytes = page_read_bytes;
++        file_meta->zero_bytes = page_zero_bytes;
+         file_meta->writable = writable;
+ 
+         void *aux = NULL;
+-        aux = &file_meta;
++        aux = file_meta;
+       
+         if (!vm_alloc_page_with_initializer(VM_ANON, upage, writable, lazy_load_segment, aux))
+             return false;
+@@ -540,6 +544,12 @@ static bool setup_stack(struct intr_frame *if_) {
+      * TODO: If success, set the rsp accordingly.
+      * TODO: You should mark the page is stack. */
+     /* TODO: Your code goes here */
++    if(vm_alloc_page_with_initializer(VM_ANON, stack_bottom, true, anon_initializer, NULL)){
++        success = vm_claim_page(stack_bottom);
++        if(success){
++            if_->rsp = USER_STACK;
++        }
++    }
+ 
+     return success;
+ }
+diff --git a/vm/.test_status b/vm/.test_status
+index 68e52b3..1042565 100644
+--- a/vm/.test_status
++++ b/vm/.test_status
+@@ -1 +1,140 @@
+-alarm-single FAIL
++exec-bad-ptr FAIL
++swap-iter FAIL
++sm-full PASS
++rox-simple PASS
++page-linear FAIL
++mmap-zero FAIL
++mmap-exit FAIL
++fork-multiple FAIL
++pt-write-code FAIL
++mmap-bad-fd FAIL
++mmap-null FAIL
++args-dbl-space PASS
++read-bad-fd FAIL
++priority-donate-multiple PASS
++args-multiple PASS
++lg-seq-random PASS
++syn-write FAIL
++syn-remove PASS
++priority-donate-one PASS
++mmap-overlap FAIL
++create-normal PASS
++priority-donate-lower PASS
++mmap-misalign FAIL
++swap-anon FAIL
++bad-write FAIL
++open-twice PASS
++page-shuffle PASS
++exec-arg FAIL
++exec-missing PASS
++page-merge-mm FAIL
++read-bad-ptr FAIL
++create-long PASS
++mmap-remove FAIL
++mmap-read FAIL
++priority-preempt PASS
++fork-close FAIL
++alarm-simultaneous PASS
++fork-boundary FAIL
++priority-donate-chain PASS
++rox-multichild FAIL
++create-bound PASS
++lg-random PASS
++page-merge-seq FAIL
++pt-bad-read FAIL
++priority-condvar PASS
++priority-donate-nest PASS
++page-merge-par FAIL
++rox-child FAIL
++mmap-write FAIL
++alarm-single PASS
++lazy-file FAIL
++pt-bad-addr FAIL
++read-normal PASS
++lazy-anon PASS
++pt-write-code2 FAIL
++mmap-over-stk FAIL
++priority-donate-multiple2 PASS
++open-empty PASS
++mmap-zero-len FAIL
++open-null PASS
++page-parallel FAIL
++sm-seq-random PASS
++page-merge-stk FAIL
++bad-write2 FAIL
++sm-seq-block PASS
++multi-recurse FAIL
++alarm-priority PASS
++close-twice PASS
++mmap-over-data FAIL
++args-none PASS
++mmap-kernel FAIL
++swap-fork FAIL
++create-bad-ptr FAIL
++read-stdout PASS
++priority-fifo PASS
++wait-bad-pid PASS
++lg-create PASS
++pt-grow-bad FAIL
++mmap-twice FAIL
++pt-grow-stk-sc FAIL
++exec-read FAIL
++priority-sema PASS
++read-boundary PASS
++wait-twice FAIL
++exec-boundary FAIL
++close-normal PASS
++mmap-ro FAIL
++sm-create PASS
++halt PASS
++write-bad-fd FAIL
++sm-random PASS
++alarm-zero PASS
++open-boundary PASS
++create-null FAIL
++pt-grow-stack FAIL
++fork-recursive FAIL
++open-bad-ptr FAIL
++mmap-inherit FAIL
++mmap-unmap FAIL
++write-normal PASS
++mmap-off FAIL
++mmap-over-code FAIL
++mmap-close FAIL
++bad-read FAIL
++fork-once FAIL
++mmap-bad-fd3 FAIL
++mmap-bad-fd2 FAIL
++priority-change PASS
++write-boundary PASS
++wait-killed FAIL
++lg-full PASS
++swap-file FAIL
++close-bad-fd FAIL
++alarm-negative PASS
++multi-child-fd FAIL
++exit PASS
++write-bad-ptr FAIL
++priority-donate-sema PASS
++lg-seq-block PASS
++mmap-shuffle FAIL
++wait-simple FAIL
++exec-once FAIL
++args-many PASS
++mmap-clean FAIL
++fork-read FAIL
++write-zero PASS
++alarm-multiple PASS
++create-exists PASS
++mmap-bad-off FAIL
++open-normal PASS
++bad-jump FAIL
++pt-big-stk-obj FAIL
++bad-jump2 FAIL
++open-missing PASS
++create-empty PASS
++args-single PASS
++write-stdin PASS
++read-zero PASS
++bad-read2 FAIL
++syn-read FAIL
+diff --git a/vm/anon.c b/vm/anon.c
+index 2a5d633..5ecf887 100644
+--- a/vm/anon.c
++++ b/vm/anon.c
+@@ -29,6 +29,7 @@ bool anon_initializer(struct page *page, enum vm_type type, void *kva) {
+     page->operations = &anon_ops;
+ 
+     struct anon_page *anon_page = &page->anon;
++    return true;
+ }
+ 
+ /* Swap in the page by read contents from the swap disk. */
+diff --git a/vm/vm.c b/vm/vm.c
+index ee2649f..69b486c 100644
+--- a/vm/vm.c
++++ b/vm/vm.c
+@@ -4,6 +4,11 @@
+ 
+ #include "threads/malloc.h"
+ #include "vm/inspect.h"
++#include "threads/vaddr.h"
++#include "threads/mmu.h"
++#include "kernel/hash.h"
++
++static struct frame *frame_table;
+ 
+ /* Initializes the virtual memory subsystem by invoking each subsystem's
+  * intialize codes. */
+@@ -16,6 +21,11 @@ void vm_init(void) {
+     register_inspect_intr();
+     /* DO NOT MODIFY UPPER LINES. */
+     /* TODO: Your code goes here. */
++    //필요한 페이지 수 계산
++    size_t n = (user_pages * sizeof(struct frame) + PGSIZE - 1 ) >> PGBITS;
++    frame_table = palloc_get_multiple(PAL_ZERO, n);
++
++    ASSERT(frame_table);
+ }
+ 
+ /* Get the type of the page. This function is useful if you want to know the
+@@ -66,6 +76,7 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
+             }
+ 
+             uninit_new(Page, upage, init, type, aux, initializer);
++            Page->writable = writable;
+         }
+         /* TODO: Insert the page into the spt. */
+         hash_insert(&thread_current()->spt.table, &Page->hash_elem);
+@@ -120,8 +131,13 @@ static struct frame *vm_evict_frame(void) {
+  * space.*/
+ static struct frame *vm_get_frame(void) {
+     struct frame *frame = NULL;
+-    /* TODO: Fill this function. */
+-
++    void *kpage = palloc_get_page(PAL_USER | PAL_ZERO);
++    if(kpage == NULL){
++        //TODO : swapping
++        ASSERT(kpage);
++    }
++    frame = &frame_table[pg_no(kpage) - pg_no(user_pool_base)];
++    frame->kva = kpage;
+     ASSERT(frame != NULL);
+     ASSERT(frame->page == NULL);
+     return frame;
+@@ -136,12 +152,12 @@ static bool vm_handle_wp(struct page *page UNUSED) {}
+ /* Return true on success */
+ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED, bool user UNUSED,
+                          bool write UNUSED, bool not_present UNUSED) {
+-    struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
+-    struct page *page = NULL;
++    // struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
++    // struct page *page = NULL;
+     /* TODO: Validate the fault */
+     /* TODO: Your code goes here */
+ 
+-    return vm_do_claim_page(page);
++    return vm_claim_page(pg_round_down(addr));
+ }
+ 
+ /* Free the page.
+@@ -155,6 +171,10 @@ void vm_dealloc_page(struct page *page) {
+ bool vm_claim_page(void *va UNUSED) {
+     struct page *page = NULL;
+     /* TODO: Fill this function */
++    struct page p;
++    p.va = va;
++    struct hash_elem *e = hash_find(&thread_current()->spt, &p.hash_elem);
++    page = hash_entry(e,struct page, hash_elem);
+ 
+     return vm_do_claim_page(page);
+ }
+@@ -168,7 +188,18 @@ static bool vm_do_claim_page(struct page *page) {
+     page->frame = frame;
+ 
+     /* TODO: Insert page table entry to map page's VA to frame's PA. */
+-
++    switch (page_get_type(page))
++    {
++    case VM_ANON:
++        if(!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable)){
++            return false;
++        }
++        break;
++    case VM_FILE:
++        break;
++    default:
++        break;
++    }
+     return swap_in(page, frame->kva);
+ }
+ 
